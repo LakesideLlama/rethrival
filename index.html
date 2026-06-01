@@ -224,14 +224,20 @@ function renderBuildMenu(){
     const disabled=alreadyBuilt||locked||!affordable;
     const modeKey=b.mode==='bridge'?'bridge':`place:${b.id}`;
     const isActive=activeMode===modeKey;
-    const why=alreadyBuilt?'built':(!affordable?'need resources':lvl<b.lvl?`lv${b.lvl} req`:b.needs?`need ${b.needs}`:'');
-    return`<div class="build-item${disabled?' disabled':''}${isActive?' active-mode':''}" onclick="${disabled?'':'selectBuildItem(\''+b.id+'\')'}">
+    const lockReason=alreadyBuilt?'Already built':lvl<b.lvl?`Requires level ${b.lvl}`:b.needs&&!structures.some(s=>s.type===b.needs)?`Requires ${b.needs}`:'';
+    const costHtml=Object.entries(b.cost).map(([k,v])=>{
+      const have=inv[k]||0;
+      const ok=have>=v;
+      return`<span style="color:${ok?'#81c784':'#e57373'}">${v} ${k} <span style="opacity:.7">(${have})</span></span>`;
+    }).join('<span style="color:#556"> · </span>');
+    return`<div class="build-item${disabled?' disabled':''}${isActive?' active-mode':''}" onclick="${disabled&&!isActive?'':'selectBuildItem(\''+b.id+'\')'}">
       <div style="display:flex;align-items:center;gap:6px">
         <span class="bi-name">${b.name}</span>
         ${isActive?'<span style="color:#4fc3f7;font-size:10px;margin-left:auto">active</span>':''}
+        ${alreadyBuilt?'<span style="color:#81c784;font-size:10px;margin-left:auto">✓ built</span>':''}
       </div>
       <div class="bi-desc">${b.desc}</div>
-      <div class="bi-cost">${disabled&&why?why:costStr(b.cost)}</div>
+      ${lockReason?`<div class="bi-cost" style="color:#e57373">${lockReason}</div>`:`<div class="bi-cost" style="display:flex;flex-wrap:wrap;gap:3px">${costHtml}</div>`}
     </div>`;
   }).join('');
 }
