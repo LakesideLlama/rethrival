@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>ReThrival</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a1628;overflow:hidden;font-family:monospace}
+canvas{display:block;position:fixed;top:0;left:0}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;width:100%;display:flex;gap:8px;padding:8px;align-items:center;pointer-events:none;z-index:10}
+.hud-box{background:rgba(0,0,0,.75);border:1px solid #444;border-radius:4px;padding:4px 10px;color:#eee;font-size:12px;pointer-events:all}
+#xpbar-bg{background:rgba(0,0,0,.7);border:1px solid #444;border-radius:4px;height:10px;width:180px;overflow:hidden}
+#xpbar-fill{height:100%;background:#4fc3f7;transition:width .3s}
+
+/* TOOLBAR */
+#toolbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:20;pointer-events:all}
+.tool-btn{height:36px;padding:0 16px;background:rgba(10,18,40,.92);border:1px solid #556;border-radius:10px;color:#ccd;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s;font-family:monospace;letter-spacing:.04em}
+.tool-btn:hover{background:rgba(40,55,100,.95);border-color:#aab}
+.tool-btn.active{background:rgba(50,80,160,.95);border-color:#7af;color:#7cf}
+
+/* BUILD MENU */
+#build-menu{position:fixed;bottom:86px;left:50%;transform:translateX(-50%);background:rgba(8,15,35,.96);border:1px solid #445;border-radius:12px;padding:12px;z-index:19;display:none;min-width:320px;pointer-events:all}
+#build-items{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.build-item{background:rgba(255,255,255,.04);border:1px solid #334;border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:background .15s,border-color .15s}
+.build-item:hover:not(.disabled){background:rgba(255,255,255,.09);border-color:#667}
+.build-item.disabled{opacity:.4;cursor:default}
+.build-item.active-mode{border-color:#4fc3f7;background:rgba(79,195,247,.08)}
+.bi-name{color:#eee;font-size:12px;font-weight:bold}
+.bi-cost{color:#aaa;font-size:10px}
+.bi-desc{color:#778;font-size:10px}
+
+/* INV SIDEBAR */
+#inv-sidebar{position:fixed;top:44px;right:10px;background:rgba(8,15,35,.92);border:1px solid #445;border-radius:8px;padding:8px 12px;z-index:10;min-width:140px;pointer-events:all}
+#inv-sidebar h3{color:#ffd54f;font-size:11px;margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;opacity:.8}
+.inv-row{display:flex;justify-content:space-between;gap:20px;padding:1px 0;font-size:11px;color:#ccc}
+.inv-val{color:#ffd54f}
+
+#msg{position:fixed;top:48px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.88);color:#ffd54f;padding:5px 16px;border-radius:6px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap;z-index:30}
+#settings-btn{position:fixed;top:8px;right:10px;z-index:20;background:rgba(10,18,40,.92);border:1px solid #556;border-radius:8px;color:#aab;font-size:12px;font-family:monospace;padding:4px 12px;cursor:pointer;pointer-events:all;letter-spacing:.04em}
+#settings-btn:hover{background:rgba(40,55,100,.95);border-color:#aab;color:#fff}
+#settings-panel{position:fixed;top:36px;right:10px;background:rgba(8,15,35,.97);border:1px solid #445;border-radius:10px;padding:14px 16px;z-index:19;display:none;min-width:200px;pointer-events:all}
+#settings-panel h3{color:#ffd54f;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;opacity:.8}
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #223;font-size:11px;color:#aab;gap:16px}
+.setting-row:last-child{border-bottom:none}
+.setting-row button{background:#1e2a44;border:1px solid #445;border-radius:5px;color:#ccd;font-size:11px;font-family:monospace;padding:2px 10px;cursor:pointer}
+.setting-row button:hover{background:#2e3a60;border-color:#778}
+</style>
+</head><body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="hud-box" id="lvl-box">Lv 1</div>
+  <div class="hud-box" id="gold-box">🪙 0</div>
+  <div class="hud-box" style="padding:4px 8px"><div id="xpbar-bg"><div id="xpbar-fill" style="width:0%"></div></div></div>
+  <div class="hud-box" id="zoom-box" style="color:#777;font-size:11px">100%</div>
+</div>
+
+<div id="inv-sidebar">
+  <h3>Inventory</h3>
+  <div id="inv-list"><div style="color:#555;font-size:11px">empty</div></div>
+</div>
+
+<div id="toolbar">
+  <button class="tool-btn" id="btn-build" onclick="toggleBuildMenu()">Build</button>
+</div>
+
+<div id="build-menu">
+  <div id="build-items"></div>
+</div>
+
+<button id="settings-btn" onclick="toggleSettings()">Settings</button>
+<div id="settings-panel">
+  <h3>Settings</h3>
+  <div class="setting-row"><span>Zoom</span><span id="s-zoom">100%</span></div>
+  <div class="setting-row"><span>Player speed</span>
+    <select id="s-speed" onchange="player.spd=+this.value" style="background:#1e2a44;border:1px solid #445;border-radius:4px;color:#ccd;font-size:11px;font-family:monospace;padding:2px 6px">
+      <option value="80">Slow</option><option value="120" selected>Normal</option><option value="180">Fast</option>
+    </select>
+  </div>
+  <div class="setting-row"><span>Show FPS</span><button onclick="toggleFPS()"><span id="fps-lbl">Off</span></button></div>
+  <div class="setting-row"><span>Reset world</span><button onclick="confirmReset()">Reset</button></div>
+</div>
+
+<div id="msg"></div>
+
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W=window.innerWidth,H=window.innerHeight;
+canvas.width=W;canvas.height=H;
+window.addEventListener('resize',()=>{W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H});
+
+const TS=48;
+const ISLAND_GRID=9;
+const CELL=10;
+
+const BIOMES={
+  plains:{cols:[3,4,5],rows:[3,4,5],name:'Plains'},
+  desert:{cols:[0,1,2],rows:[3,4,5],name:'Desert'},
+  marsh: {cols:[6,7,8],rows:[3,4,5],name:'Marsh'},
+};
+const BC={
+  plains:{base:'#3a7a31',alt:'#2d5a27',res_tree:'#1b5e20',res_rock:'#616161',res_bush:'#33691e',res_stump:'#5d4037',res_wheat:'#f9a825'},
+  desert:{base:'#c9a84c',alt:'#b8943e',res_cactus:'#4a7c3f',res_sand_rock:'#8d6e3a',res_dune:'#d4a843'},
+  marsh: {base:'#4a5568',alt:'#3d4a58',res_reed:'#6b8c5a',res_mud_rock:'#4a3f35',res_herb:'#7b5ea7'},
+};
+
+const BIOME_RES={plains:['tree','rock','bush','wheat'],desert:['cactus','sand_rock','dune'],marsh:['reed','mud_rock','herb']};
+const RES_HP={tree:3,rock:4,bush:2,wheat:1,cactus:3,sand_rock:4,dune:2,reed:2,mud_rock:4,herb:1};
+const RES_LOOT={tree:()=>({wood:rnd(2,4)}),rock:()=>({stone:rnd(2,5)}),bush:()=>({food:rnd(1,2)}),wheat:()=>({wheat:rnd(1,3)}),cactus:()=>({cactus_spine:rnd(1,2),food:1}),sand_rock:()=>({stone:rnd(1,3),sand:rnd(1,2)}),dune:()=>({sand:rnd(2,4)}),reed:()=>({reed:rnd(1,3)}),mud_rock:()=>({stone:rnd(1,2),mud:1}),herb:()=>({herb:rnd(1,2)})};
+const RES_XP={tree:8,rock:10,bush:5,wheat:4,cactus:8,sand_rock:10,dune:4,reed:6,mud_rock:10,herb:8};
+const RESPAWN={tree:18000,rock:25000,bush:12000,wheat:8000,cactus:20000,sand_rock:28000,dune:10000,reed:14000,mud_rock:26000,herb:16000};
+const XP_TABLE=[0,100,250,450,700,1000,1400,1900,2500,3200];
+
+// Build definitions — anything placeable
+const BUILDABLES=[
+  {id:'bridge',  name:'Bridge',   icon:'ti-bridge',  desc:'Cross water gaps', cost:{wood:3,stone:2},  lvl:1, mode:'bridge'},
+  {id:'furnace', name:'Furnace',  icon:'ti-flame',   desc:'Smelts ore → iron', cost:{stone:8,plank:4}, lvl:2, mode:'place'},
+  {id:'forge',   name:'Forge',    icon:'ti-tool',    desc:'Unlocks advanced crafting', cost:{stone:12,iron:4}, lvl:4, needs:'furnace', mode:'place'},
+  {id:'market',  name:'Market',   icon:'ti-building-store', desc:'Generates gold', cost:{plank:10,gold:4}, lvl:5, needs:'forge', mode:'place'},
+];
+
+let inv={wood:0,stone:0,food:0,wheat:0,plank:0,stone_block:0,gold:30,iron:0,ore:0,gold_ore:0,cactus_spine:0,sand:0,reed:0,mud:0,herb:0};
+let player={x:0,y:0,spd:120,dir:0};
+let cam={x:0,y:0};
+let zoom=1;
+const ZOOM_MIN=0.4,ZOOM_MAX=1,ZOOM_STEP=0.1;
+let keys={};
+let structures=[],bridges=new Set();
+let xp=0,lvl=1,lastT=0,autoTimer=0,msgTimer=null;
+let activeMode=null;
+let buildMenuOpen=false,settingsOpen=false,showFPS=false,fps=0,fpsTimer=0,fpsCount=0;
+let islandGrid=[],landTiles={};
+
+// ---- WORLD ----
+function getBiome(ix,iy){for(const[n,b]of Object.entries(BIOMES)){if(b.cols.includes(ix)&&b.rows.includes(iy))return n;}return null;}
+function genShape(){
+  const cells=new Set();
+  for(let y=0;y<5;y++)for(let x=0;x<5;x++)cells.add(`${x},${y}`);
+  const ext=rnd(4,14);
+  for(let i=0;i<ext;i++){
+    const arr=[...cells];
+    const[sx,sy]=arr[Math.floor(Math.random()*arr.length)].split(',').map(Number);
+    const[dx,dy]=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]][Math.floor(Math.random()*8)];
+    cells.add(`${sx+dx},${sy+dy}`);
+  }
+  if(Math.random()<0.05)for(let y=1;y<4;y++)cells.delete(`2,${y}`);
+  const xs=[...cells].map(k=>+k.split(',')[0]),ys=[...cells].map(k=>+k.split(',')[1]);
+  const mx=Math.min(...xs),my=Math.min(...ys);
+  const norm=new Set([...cells].map(k=>{const[x,y]=k.split(',').map(Number);return`${x-mx},${y-my}`}));
+  const w=Math.max(...[...norm].map(k=>+k.split(',')[0]))+1;
+  const h=Math.max(...[...norm].map(k=>+k.split(',')[1]))+1;
+  return{cells:norm,w,h};
+}
+function initWorld(){
+  for(let iy=0;iy<ISLAND_GRID;iy++){
+    islandGrid[iy]=[];
+    for(let ix=0;ix<ISLAND_GRID;ix++){
+      const biome=getBiome(ix,iy);
+      const shape=genShape();
+      const wx=ix*CELL,wy=iy*CELL;
+      const owned=ix===4&&iy===4;
+      const dist=Math.max(Math.abs(ix-4),Math.abs(iy-4));
+      const cost=Math.floor(20*Math.pow(1.8,dist));
+      const isl={ix,iy,biome,shape,owned,cost,wx,wy,tiles:[]};
+      islandGrid[iy][ix]=isl;
+      if(owned)buildTiles(isl);
+    }
+  }
+  const ci=islandGrid[4][4];
+  player.x=(ci.wx+Math.floor(ci.shape.w/2))*TS+TS/2;
+  player.y=(ci.wy+Math.floor(ci.shape.h/2))*TS+TS/2;
+}
+function buildTiles(isl){
+  isl.tiles=[];
+  const rt=BIOME_RES[isl.biome]||BIOME_RES.plains;
+  isl.shape.cells.forEach(k=>{
+    const[lx,ly]=k.split(',').map(Number);
+    const wx=isl.wx+lx,wy=isl.wy+ly,key=`${wx},${wy}`;
+    let res=null,resHp=0;
+    if(Math.random()<0.28){res=rt[Math.floor(Math.random()*rt.length)];resHp=RES_HP[res];}
+    const t={wx,wy,biome:isl.biome,alt:Math.random()<0.3,res,resHp,resMax:resHp,resTimer:0,_lastRes:res};
+    isl.tiles.push(t);landTiles[key]=t;
+  });
+}
+function adjOwned(isl){return[[0,1],[0,-1],[1,0],[-1,0]].some(([dx,dy])=>{const ni=islandGrid[isl.iy+dy]?.[isl.ix+dx];return ni&&ni.owned;});}
+
+// ---- HELPERS ----
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function showMsg(t){const el=document.getElementById('msg');el.textContent=t;el.style.opacity=1;clearTimeout(msgTimer);msgTimer=setTimeout(()=>el.style.opacity=0,2200);}
+function screenToWorld(sx,sy){return{wx:Math.floor((sx/zoom+cam.x)/TS),wy:Math.floor((sy/zoom+cam.y)/TS)};}
+function costStr(cost){return Object.entries(cost).map(([k,v])=>`${v} ${k}`).join(', ');}
+function canAfford(cost){return Object.entries(cost).every(([k,v])=>(inv[k]||0)>=v);}
+function spendCost(cost){Object.entries(cost).forEach(([k,v])=>inv[k]-=v);}
+
+// ---- BUILD MENU ----
+function toggleBuildMenu(){
+  buildMenuOpen=!buildMenuOpen;
+  document.getElementById('build-menu').style.display=buildMenuOpen?'block':'none';
+  document.getElementById('btn-build').classList.toggle('active',buildMenuOpen);
+  if(buildMenuOpen)renderBuildMenu();
+}
+function closeBuildMenu(){buildMenuOpen=false;document.getElementById('build-menu').style.display='none';document.getElementById('btn-build').classList.remove('active');}
+
+function selectBuildItem(id){
+  const b=BUILDABLES.find(x=>x.id===id);if(!b)return;
+  if(lvl<b.lvl){showMsg(`Need level ${b.lvl}`);return;}
+  if(b.needs&&!structures.some(s=>s.type===b.needs)){showMsg(`Need a ${b.needs} first`);return;}
+  if(!canAfford(b.cost)){showMsg(`Need: ${costStr(b.cost)}`);return;}
+  const modeKey=b.mode==='bridge'?'bridge':`place:${b.id}`;
+  if(activeMode===modeKey){activeMode=null;showMsg('Build mode off');}
+  else{activeMode=modeKey;showMsg(b.mode==='bridge'?'Click water to place bridge':`Click land to place ${b.name}`);}
+  closeBuildMenu();
+  updateUI();
+}
+window.selectBuildItem=selectBuildItem;
+
+function renderBuildMenu(){
+  document.getElementById('build-items').innerHTML=BUILDABLES.map(b=>{
+    const alreadyBuilt=b.mode==='place'&&structures.some(s=>s.type===b.id);
+    const locked=lvl<b.lvl||(b.needs&&!structures.some(s=>s.type===b.needs));
+    const affordable=canAfford(b.cost);
+    const disabled=alreadyBuilt||locked||!affordable;
+    const modeKey=b.mode==='bridge'?'bridge':`place:${b.id}`;
+    const isActive=activeMode===modeKey;
+    const why=alreadyBuilt?'built':(!affordable?'need resources':lvl<b.lvl?`lv${b.lvl} req`:b.needs?`need ${b.needs}`:'');
+    return`<div class="build-item${disabled?' disabled':''}${isActive?' active-mode':''}" onclick="${disabled?'':'selectBuildItem(\''+b.id+'\')'}">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="bi-name">${b.name}</span>
+        ${isActive?'<span style="color:#4fc3f7;font-size:10px;margin-left:auto">active</span>':''}
+      </div>
+      <div class="bi-desc">${b.desc}</div>
+      <div class="bi-cost">${disabled&&why?why:costStr(b.cost)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---- INPUT ----
+window.addEventListener('keydown',e=>{
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==='Escape'){activeMode=null;closeBuildMenu();settingsOpen=false;document.getElementById('settings-panel').style.display='none';updateUI();}
+  if(e.key==='-'||e.key==='_')setZoom(zoom-ZOOM_STEP);
+  if(e.key==='='||e.key==='+')setZoom(zoom+ZOOM_STEP);
+});
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom-Math.sign(e.deltaY)*ZOOM_STEP);},{passive:false});
+function setZoom(z){
+  zoom=+Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,z)).toFixed(2);
+  const pct=Math.round(zoom*100)+'%';
+  document.getElementById('zoom-box').textContent=pct;
+  document.getElementById('s-zoom').textContent=pct;
+}
+function toggleSettings(){
+  settingsOpen=!settingsOpen;
+  document.getElementById('settings-panel').style.display=settingsOpen?'block':'none';
+}
+function toggleFPS(){
+  showFPS=!showFPS;
+  document.getElementById('fps-lbl').textContent=showFPS?'On':'Off';
+}
+function confirmReset(){
+  if(confirm('Reset the world? All progress will be lost.')){
+    Object.keys(inv).forEach(k=>inv[k]=0);inv.gold=30;
+    xp=0;lvl=1;structures=[];bridges=new Set();activeMode=null;
+    landTiles={};for(let iy=0;iy<ISLAND_GRID;iy++)for(let ix=0;ix<ISLAND_GRID;ix++)islandGrid[iy][ix].owned=false;
+    initWorld();updateUI();toggleSettings();showMsg('World reset');
+  }
+}
+
+canvas.addEventListener('click',e=>{
+  const{wx:twx,wy:twy}=screenToWorld(e.clientX,e.clientY);
+  const key=`${twx},${twy}`;
+
+  if(activeMode==='bridge'){
+    tryBridge(twx,twy);return;
+  }
+  if(activeMode&&activeMode.startsWith('place:')){
+    const type=activeMode.split(':')[1];
+    tryPlaceStructure(type,twx,twy);return;
+  }
+  if(landTiles[key]){gatherTile(twx,twy);return;}
+  // buy island
+  for(let iy=0;iy<ISLAND_GRID;iy++)for(let ix=0;ix<ISLAND_GRID;ix++){
+    const isl=islandGrid[iy][ix];
+    if(isl.owned||!adjOwned(isl))continue;
+    if(twx>=isl.wx&&twx<isl.wx+CELL&&twy>=isl.wy&&twy<isl.wy+CELL){tryBuyIsland(isl);return;}
+  }
+});
+
+// close build menu on canvas click
+canvas.addEventListener('mousedown',()=>{if(buildMenuOpen&&!activeMode)closeBuildMenu();});
+
+// ---- ACTIONS ----
+function gatherTile(twx,twy){
+  const t=landTiles[`${twx},${twy}`];if(!t||!t.res)return;
+  if(Math.hypot(player.x-(twx*TS+TS/2),player.y-(twy*TS+TS/2))>TS*2.4){showMsg('Too far away');return;}
+  t.resHp--;
+  if(t.resHp<=0){
+    const loot=(RES_LOOT[t.res]||{})();
+    Object.entries(loot).forEach(([k,v])=>inv[k]=(inv[k]||0)+v);
+    gainXP(RES_XP[t.res]||5);
+    showMsg('+'+Object.entries(loot).map(([k,v])=>`${v} ${k}`).join(', '));
+    t.resTimer=Date.now();t._lastRes=t.res;t.res=null;updateUI();
+  }
+}
+
+function tryBridge(twx,twy){
+  const key=`${twx},${twy}`;
+  if(landTiles[key]||bridges.has(key)){showMsg('Already land here');return;}
+  const adj=[[0,1],[0,-1],[1,0],[-1,0]];
+  if(!adj.some(([dx,dy])=>{const k=`${twx+dx},${twy+dy}`;return landTiles[k]||bridges.has(k);})){showMsg('Must connect to land');return;}
+  const b=BUILDABLES.find(x=>x.id==='bridge');
+  if(!canAfford(b.cost)){showMsg(`Need: ${costStr(b.cost)}`);activeMode=null;updateUI();return;}
+  spendCost(b.cost);bridges.add(key);showMsg('Bridge placed');updateUI();
+}
+
+function tryPlaceStructure(type,twx,twy){
+  const key=`${twx},${twy}`;
+  if(!landTiles[key]){showMsg('Must place on land');return;}
+  if(structures.some(s=>s.wx===twx&&s.wy===twy)){showMsg('Tile already occupied');return;}
+  const b=BUILDABLES.find(x=>x.id===type);if(!b)return;
+  if(!canAfford(b.cost)){showMsg(`Need: ${costStr(b.cost)}`);activeMode=null;updateUI();return;}
+  spendCost(b.cost);
+  structures.push({type,wx:twx,wy:twy});
+  gainXP(30);showMsg(`${b.name} built!`);
+  activeMode=null;updateUI();
+}
+
+function tryBuyIsland(isl){
+  if(inv.gold<isl.cost){showMsg(`Need ${isl.cost} gold`);return;}
+  inv.gold-=isl.cost;isl.owned=true;buildTiles(isl);gainXP(50);
+  showMsg(`${isl.biome||'Island'} unlocked!`);updateUI();
+}
+
+function gainXP(a){xp+=a;const n=XP_TABLE[lvl]||99999;if(xp>=n&&lvl<10){lvl++;xp-=n;showMsg('LEVEL UP! Lv '+lvl);}updateUI();}
+
+function autoStep(dt){
+  autoTimer+=dt;if(autoTimer<10000)return;autoTimer=0;let ch=false;
+  for(const s of structures){
+    if(s.type==='furnace'&&inv.ore>0){inv.ore--;inv.iron=(inv.iron||0)+1;ch=true;}
+    if(s.type==='market'){inv.gold=(inv.gold||0)+2+lvl;ch=true;}
+  }
+  if(ch)updateUI();
+}
+
+function respawnCheck(){
+  const now=Date.now();
+  for(const t of Object.values(landTiles)){
+    if(!t.res&&t.resTimer>0&&now-t.resTimer>(RESPAWN[t._lastRes]||20000)){
+      const rt=BIOME_RES[t.biome]||BIOME_RES.plains;
+      t.res=rt[Math.floor(Math.random()*rt.length)];t.resHp=RES_HP[t.res];t.resMax=t.resHp;t.resTimer=0;
+    }
+  }
+}
+
+// ---- DRAW ----
+function drawRes(res,cx,cy,hp,maxHp,biome){
+  const s=TS*0.32,bc=BC[biome]||BC.plains;
+  ctx.save();ctx.translate(cx,cy);
+  ctx.strokeStyle='rgba(0,0,0,0.75)';ctx.lineWidth=1.5;
+  if(res==='tree'||res==='reed'){
+    ctx.fillStyle=res==='reed'?(bc.res_reed||'#6b8c5a'):bc.res_tree;
+    ctx.beginPath();ctx.moveTo(0,-s*1.2);ctx.lineTo(s*.8,s*.6);ctx.lineTo(-s*.8,s*.6);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle=bc.res_stump||'#5d4037';ctx.beginPath();ctx.rect(-3,s*.5,6,s*.5);ctx.fill();ctx.stroke();
+  } else if(res==='rock'||res==='sand_rock'||res==='mud_rock'){
+    ctx.fillStyle=res==='sand_rock'?(bc.res_sand_rock||'#8d6e3a'):res==='mud_rock'?(bc.res_mud_rock||'#4a3f35'):(bc.res_rock||'#616161');
+    ctx.beginPath();ctx.ellipse(0,0,s*.9,s*.7,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  } else if(res==='bush'||res==='herb'){
+    ctx.fillStyle=res==='herb'?(bc.res_herb||'#7b5ea7'):(bc.res_bush||'#33691e');
+    ctx.beginPath();ctx.arc(0,0,s*.8,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle=res==='herb'?'#c2185b':'#c62828';
+    for(let i=0;i<3;i++){const a=i*2.1;ctx.beginPath();ctx.arc(Math.cos(a)*s*.4,Math.sin(a)*s*.4,s*.2,0,Math.PI*2);ctx.fill();ctx.stroke();}
+  } else if(res==='cactus'){
+    ctx.fillStyle=bc.res_cactus||'#4a7c3f';
+    ctx.beginPath();ctx.rect(-s*.25,-s*1.1,s*.5,s*1.4);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.rect(-s*.7,-s*.3,s*.45,s*.25);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.rect(s*.25,-s*.5,s*.45,s*.25);ctx.fill();ctx.stroke();
+  } else if(res==='wheat'||res==='dune'){
+    ctx.fillStyle=res==='dune'?(bc.res_dune||'#d4a843'):(bc.res_wheat||'#f9a825');
+    ctx.beginPath();ctx.ellipse(0,s*.1,s*.85,s*.55,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  }
+  if(hp<maxHp&&hp>0){
+    const bw=TS*.6,bh=4,bx=-bw/2,by=s*.95;
+    ctx.fillStyle='#222';ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle='#76ff03';ctx.fillRect(bx,by,bw*(hp/maxHp),bh);
+  }
+  ctx.restore();
+}
+
+function drawStruct(type,cx,cy){
+  const s=TS*.35,C={furnace:'#bf360c',forge:'#37474f',market:'#1565c0'};
+  ctx.save();ctx.translate(cx,cy);
+  ctx.fillStyle=C[type]||'#888';ctx.fillRect(-s,-s,s*2,s*2);
+  ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(-s,-s,s*2,s*2);
+  ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText({furnace:'FRN',forge:'FRG',market:'MKT'}[type]||'?',0,0);
+  ctx.restore();
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+function drawActiveModeHint(){
+  if(!activeMode)return;
+  const{wx:twx,wy:twy}=screenToWorld(W/2,H/2);
+  // draw ghost cursor at mouse — track mouse
+  if(typeof lastMX!=='undefined'){
+    const{wx,wy}=screenToWorld(lastMX,lastMY);
+    const px=wx*TS,py=wy*TS;
+    ctx.save();
+    ctx.strokeStyle='rgba(79,195,247,.7)';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+    ctx.strokeRect(px,py,TS,TS);ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+let lastMX,lastMY;
+canvas.addEventListener('mousemove',e=>{lastMX=e.clientX;lastMY=e.clientY;});
+
+function update(dt){
+  const spd=player.spd*(dt/1000);
+  let dx=0,dy=0;
+  if(keys['w']||keys['arrowup'])dy=-1;
+  if(keys['s']||keys['arrowdown'])dy=1;
+  if(keys['a']||keys['arrowleft'])dx=-1;
+  if(keys['d']||keys['arrowright'])dx=1;
+  if(dx&&dy){dx*=0.707;dy*=0.707;}
+  if(dx||dy)player.dir=Math.atan2(dy,dx);
+  const nx=player.x+dx*spd,ny=player.y+dy*spd;
+  const tkx=Math.floor(nx/TS),tky=Math.floor(ny/TS);
+  const tky2=Math.floor(player.y/TS),tkx2=Math.floor(player.x/TS);
+  if(landTiles[`${tkx},${tky2}`]||bridges.has(`${tkx},${tky2}`))player.x=Math.max(8,nx);
+  if(landTiles[`${tkx2},${tky}`]||bridges.has(`${tkx2},${tky}`))player.y=Math.max(8,ny);
+  cam.x=player.x-W/(2*zoom);
+  cam.y=player.y-H/(2*zoom);
+}
+
+function draw(ts){
+  const dt=Math.min(ts-lastT,100);lastT=ts;
+  update(dt);respawnCheck();autoStep(dt);
+
+  ctx.fillStyle='#0d2344';ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.scale(zoom,zoom);
+  ctx.translate(-cam.x,-cam.y);
+
+  // ocean grid
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=1;
+  const s0x=Math.floor(cam.x/TS)-1,e0x=Math.ceil((cam.x+W/zoom)/TS)+1;
+  const s0y=Math.floor(cam.y/TS)-1,e0y=Math.ceil((cam.y+H/zoom)/TS)+1;
+  for(let tx=s0x;tx<=e0x;tx++){ctx.beginPath();ctx.moveTo(tx*TS,s0y*TS);ctx.lineTo(tx*TS,e0y*TS);ctx.stroke();}
+  for(let ty=s0y;ty<=e0y;ty++){ctx.beginPath();ctx.moveTo(s0x*TS,ty*TS);ctx.lineTo(e0x*TS,ty*TS);ctx.stroke();}
+
+  // land
+  for(const t of Object.values(landTiles)){
+    const px=t.wx*TS,py=t.wy*TS;
+    if(px>cam.x+W/zoom+TS||py>cam.y+H/zoom+TS||px+TS<cam.x||py+TS<cam.y)continue;
+    const bc=BC[t.biome]||BC.plains;
+    ctx.fillStyle=t.alt?bc.alt:bc.base;ctx.fillRect(px,py,TS,TS);
+    ctx.strokeStyle='rgba(0,0,0,.12)';ctx.lineWidth=.5;ctx.strokeRect(px,py,TS,TS);
+    if(t.res)drawRes(t.res,px+TS/2,py+TS/2,t.resHp,t.resMax||RES_HP[t.res],t.biome);
+  }
+
+  // bridges
+  for(const bk of bridges){
+    const[bwx,bwy]=bk.split(',').map(Number);
+    const px=bwx*TS,py=bwy*TS;
+    if(px>cam.x+W/zoom+TS||py>cam.y+H/zoom+TS||px+TS<cam.x||py+TS<cam.y)continue;
+    ctx.fillStyle='#8d6e3a';ctx.fillRect(px,py,TS,TS);
+    ctx.strokeStyle='#5d4037';ctx.lineWidth=1;ctx.strokeRect(px+4,py+4,TS-8,TS-8);
+    ctx.fillStyle='#a1887f';ctx.fillRect(px+4,py+TS/2-3,TS-8,6);
+  }
+
+  // structures
+  for(const s of structures){
+    const px=s.wx*TS,py=s.wy*TS;
+    if(px>cam.x+W/zoom+TS||py>cam.y+H/zoom+TS||px+TS<cam.x||py+TS<cam.y)continue;
+    drawStruct(s.type,px+TS/2,py+TS/2);
+  }
+
+  // island cost labels
+  for(let iy=0;iy<ISLAND_GRID;iy++)for(let ix=0;ix<ISLAND_GRID;ix++){
+    const isl=islandGrid[iy][ix];
+    if(isl.owned||!adjOwned(isl))continue;
+    const cx=(isl.wx+isl.shape.w/2)*TS,cy=(isl.wy+isl.shape.h/2)*TS;
+    if(cx>cam.x+W/zoom+100||cy>cam.y+H/zoom+60||cx<cam.x-100||cy<cam.y-60)continue;
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.7)';roundRect(ctx,cx-52,cy-22,104,44,6);ctx.fill();
+    ctx.strokeStyle='#ffd54f';ctx.lineWidth=1;roundRect(ctx,cx-52,cy-22,104,44,6);ctx.stroke();
+    ctx.fillStyle='#ffd54f';ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText((isl.biome||'island').toUpperCase(),cx,cy-6);
+    ctx.fillStyle='#fff';ctx.font='11px monospace';ctx.fillText('🪙 '+isl.cost+' to unlock',cx,cy+10);
+    ctx.restore();
+  }
+
+  // player
+  ctx.fillStyle='#ffca28';ctx.beginPath();ctx.arc(player.x,player.y,10,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#333';ctx.beginPath();ctx.arc(player.x+Math.cos(player.dir)*7,player.y+Math.sin(player.dir)*7,3,0,Math.PI*2);ctx.fill();
+
+  // active mode tile cursor
+  drawActiveModeHint();
+
+  ctx.restore();
+  // FPS counter
+  fpsCount++;fpsTimer+=dt;
+  if(fpsTimer>=1000){fps=fpsCount;fpsCount=0;fpsTimer=0;}
+  if(showFPS){ctx.fillStyle='#0d2344';ctx.fillRect(W-54,H-22,50,18);ctx.fillStyle='#76ff03';ctx.font='11px monospace';ctx.textAlign='right';ctx.fillText(fps+' fps',W-6,H-8);}
+
+  requestAnimationFrame(draw);
+}
+
+// ---- UI ----
+function updateUI(){
+  const items=Object.entries(inv).filter(([,v])=>v>0);
+  document.getElementById('inv-list').innerHTML=items.length
+    ?items.map(([k,v])=>`<div class="inv-row"><span>${k}</span><span class="inv-val">${v}</span></div>`).join('')
+    :'<div style="color:#555;font-size:11px">empty</div>';
+  document.getElementById('gold-box').textContent='🪙 '+inv.gold;
+  const need=XP_TABLE[lvl]||1;
+  document.getElementById('xpbar-fill').style.width=(Math.min(xp/need,1)*100)+'%';
+  document.getElementById('lvl-box').textContent='Lv '+lvl+' ('+xp+'/'+need+')';
+  // active mode indicator on toolbar btn
+  document.getElementById('btn-build').classList.toggle('active',!!activeMode);
+  if(buildMenuOpen)renderBuildMenu();
+}
+
+initWorld();updateUI();requestAnimationFrame(draw);
+</script>
+</body></html>
