@@ -78,7 +78,7 @@ canvas{display:block;position:fixed;top:0;left:0}
     </select>
   </div>
   <div class="setting-row"><span>Show FPS</span><button onclick="toggleFPS()"><span id="fps-lbl">Off</span></button></div>
-  <div class="setting-row"><span>Save game</span><button onclick="saveGame()">Save</button></div>
+  <div class="setting-row"><span>Save game</span><button onclick="saveGameManual()">Save</button></div>
   <div class="setting-row"><span>Load game</span><button onclick="loadGame(true)">Load</button></div>
   <div class="setting-row"><span>Reset world</span><button onclick="confirmReset()">Reset</button></div>
 </div>
@@ -269,8 +269,9 @@ function saveGame(){
   for(const[key,t]of Object.entries(landTiles))tileStates[key]={res:t.res,resHp:t.resHp,resMax:t.resMax,resTimer:t.resTimer,_lastRes:t._lastRes,alt:t.alt};
   const data={v:1,inv,xp,lvl,player:{x:player.x,y:player.y,spd:player.spd,dir:player.dir},zoom,structures,bridges:[...bridges],islandData,tileStates};
   localStorage.setItem('rethrival_save',JSON.stringify(data));
-  showMsg('Game saved');
 }
+
+function saveGameManual(){saveGame();showMsg('Game saved');}
 
 function loadGame(manual){
   const raw=localStorage.getItem('rethrival_save');
