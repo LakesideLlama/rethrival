@@ -78,7 +78,7 @@ canvas{display:block;position:fixed;top:0;left:0}
     </select>
   </div>
   <div class="setting-row"><span>Show FPS</span><button onclick="toggleFPS()"><span id="fps-lbl">Off</span></button></div>
-  <div class="setting-row"><span>Save game</span><button onclick="saveGame()">Save</button></div>
+  <div class="setting-row"><span>Save game</span><button onclick="saveGameManual()">Save</button></div>
   <div class="setting-row"><span>Load game</span><button onclick="loadGame(true)">Load</button></div>
   <div class="setting-row"><span>Reset world</span><button onclick="confirmReset()">Reset</button></div>
 </div>
@@ -224,14 +224,20 @@ function renderBuildMenu(){
     const disabled=alreadyBuilt||locked||!affordable;
     const modeKey=b.mode==='bridge'?'bridge':`place:${b.id}`;
     const isActive=activeMode===modeKey;
-    const why=alreadyBuilt?'built':(!affordable?'need resources':lvl<b.lvl?`lv${b.lvl} req`:b.needs?`need ${b.needs}`:'');
-    return`<div class="build-item${disabled?' disabled':''}${isActive?' active-mode':''}" onclick="${disabled?'':'selectBuildItem(\''+b.id+'\')'}">
+    const lockReason=alreadyBuilt?'Already built':lvl<b.lvl?`Requires level ${b.lvl}`:b.needs&&!structures.some(s=>s.type===b.needs)?`Requires ${b.needs}`:'';
+    const costHtml=Object.entries(b.cost).map(([k,v])=>{
+      const have=inv[k]||0;
+      const ok=have>=v;
+      return`<span style="color:${ok?'#81c784':'#e57373'}">${v} ${k} <span style="opacity:.7">(${have})</span></span>`;
+    }).join('<span style="color:#556"> · </span>');
+    return`<div class="build-item${disabled?' disabled':''}${isActive?' active-mode':''}" onclick="${disabled&&!isActive?'':'selectBuildItem(\''+b.id+'\')'}">
       <div style="display:flex;align-items:center;gap:6px">
         <span class="bi-name">${b.name}</span>
         ${isActive?'<span style="color:#4fc3f7;font-size:10px;margin-left:auto">active</span>':''}
+        ${alreadyBuilt?'<span style="color:#81c784;font-size:10px;margin-left:auto">✓ built</span>':''}
       </div>
       <div class="bi-desc">${b.desc}</div>
-      <div class="bi-cost">${disabled&&why?why:costStr(b.cost)}</div>
+      ${lockReason?`<div class="bi-cost" style="color:#e57373">${lockReason}</div>`:`<div class="bi-cost" style="display:flex;flex-wrap:wrap;gap:3px">${costHtml}</div>`}
     </div>`;
   }).join('');
 }
@@ -269,8 +275,9 @@ function saveGame(){
   for(const[key,t]of Object.entries(landTiles))tileStates[key]={res:t.res,resHp:t.resHp,resMax:t.resMax,resTimer:t.resTimer,_lastRes:t._lastRes,alt:t.alt};
   const data={v:1,inv,xp,lvl,player:{x:player.x,y:player.y,spd:player.spd,dir:player.dir},zoom,structures,bridges:[...bridges],islandData,tileStates};
   localStorage.setItem('rethrival_save',JSON.stringify(data));
-  showMsg('Game saved');
 }
+
+function saveGameManual(){saveGame();showMsg('Game saved');}
 
 function loadGame(manual){
   const raw=localStorage.getItem('rethrival_save');
@@ -281,16 +288,26 @@ function loadGame(manual){
   Object.assign(player,d.player);
   structures=d.structures||[];
   bridges=new Set(d.bridges||[]);
-  // restore island shapes & ownership
+  // restore island shapes & ownership, rebuild tiles directly from saved states
   landTiles={};
+  const ts=d.tileStates||{};
   for(const id of d.islandData){
     const isl=islandGrid[id.iy][id.ix];
     isl.shape={cells:new Set(id.shape.cells),w:id.shape.w,h:id.shape.h};
     isl.owned=id.owned;
-    if(id.owned)buildTiles(isl);
+    isl.tiles=[];
+    if(id.owned){
+      isl.shape.cells.forEach(k=>{
+        const[lx,ly]=k.split(',').map(Number);
+        const wx=isl.wx+lx,wy=isl.wy+ly,key=`${wx},${wy}`;
+        const s=ts[key];
+        const t=s
+          ?{wx,wy,biome:isl.biome,alt:s.alt,res:s.res,resHp:s.resHp,resMax:s.resMax,resTimer:s.resTimer,_lastRes:s._lastRes}
+          :{wx,wy,biome:isl.biome,alt:Math.random()<0.3,res:null,resHp:0,resMax:0,resTimer:0,_lastRes:null};
+        isl.tiles.push(t);landTiles[key]=t;
+      });
+    }
   }
-  // overlay saved tile states (res hp, timers, alt)
-  for(const[key,ts]of Object.entries(d.tileStates||{})){if(landTiles[key])Object.assign(landTiles[key],ts);}
   setZoom(d.zoom||1);
   updateUI();
   if(manual)showMsg('Game loaded');
