@@ -29,6 +29,25 @@ canvas{display:block;position:fixed;top:0;left:0}
 .bi-cost{color:#aaa;font-size:10px}
 .bi-desc{color:#778;font-size:10px}
 
+/* WORKBENCH UI */
+#workbench-ui{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center}
+#workbench-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .25s}
+#workbench-overlay.open{background:rgba(0,0,0,.65)}
+#workbench-panel{position:relative;background:#0a1628;border:1px solid #5a7a5a;border-radius:14px;padding:0;min-width:360px;max-width:500px;width:90vw;max-height:80vh;display:flex;flex-direction:column;transform:scale(0.05);opacity:0;transition:transform .3s cubic-bezier(0.34,1.45,0.64,1),opacity .2s}
+#workbench-panel.open{transform:scale(1);opacity:1}
+#wb-header{padding:16px 18px 12px;border-bottom:1px solid #1e3a2e;display:flex;justify-content:space-between;align-items:center}
+#wb-header h2{color:#81c784;font-size:14px;letter-spacing:.08em;text-transform:uppercase;margin:0}
+#wb-close{background:none;border:none;color:#556;font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+#wb-close:hover{color:#aaa}
+#wb-recipes{overflow-y:auto;padding:12px}
+.wb-recipe{background:rgba(255,255,255,.04);border:1px solid #233;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:background .15s,border-color .15s}
+.wb-recipe:hover:not(.wb-disabled){background:rgba(129,199,132,.08);border-color:#3a6a3a}
+.wb-recipe.wb-disabled{opacity:.45;cursor:default}
+.wb-rname{color:#e8e8e8;font-size:12px;font-weight:bold;margin-bottom:4px}
+.wb-costs{display:flex;flex-wrap:wrap;gap:4px;font-size:10px}
+.wb-arrow{color:#556;margin:0 2px}
+.wb-out{color:#81c784}
+
 /* INV SIDEBAR */
 #inv-sidebar{position:fixed;top:44px;right:10px;background:rgba(8,15,35,.92);border:1px solid #445;border-radius:8px;padding:8px 12px;z-index:10;min-width:140px;pointer-events:all}
 #inv-sidebar h3{color:#ffd54f;font-size:11px;margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;opacity:.8}
@@ -83,6 +102,17 @@ canvas{display:block;position:fixed;top:0;left:0}
   <div class="setting-row"><span>Reset world</span><button onclick="confirmReset()">Reset</button></div>
 </div>
 
+<div id="workbench-ui">
+  <div id="workbench-overlay" onclick="closeWorkbench()"></div>
+  <div id="workbench-panel">
+    <div id="wb-header">
+      <h2>⚒ Workbench</h2>
+      <button id="wb-close" onclick="closeWorkbench()">✕</button>
+    </div>
+    <div id="wb-recipes"></div>
+  </div>
+</div>
+
 <div id="msg"></div>
 
 <script>
@@ -113,12 +143,21 @@ const RES_XP={tree:8,rock:10,bush:5,wheat:4,cactus:8,sand_rock:10,dune:4,reed:6,
 const RESPAWN={tree:18000,rock:25000,bush:12000,wheat:8000,cactus:20000,sand_rock:28000,dune:10000,reed:14000,mud_rock:26000,herb:16000};
 const XP_TABLE=[0,100,250,450,700,1000,1400,1900,2500,3200];
 
+const RECIPES=[
+  {id:'plank',       name:'Plank',       inputs:{wood:3},        outputs:{plank:2},       xp:6},
+  {id:'stone_block', name:'Stone Block', inputs:{stone:3},       outputs:{stone_block:2}, xp:6},
+  {id:'rope',        name:'Rope',        inputs:{reed:2},        outputs:{rope:1},        xp:4},
+  {id:'mud_brick',   name:'Mud Brick',   inputs:{mud:2,sand:1},  outputs:{mud_brick:2},   xp:5},
+  {id:'herb_potion', name:'Herb Potion', inputs:{herb:3,food:1}, outputs:{potion:1},      xp:12},
+];
+
 // Build definitions — anything placeable
 const BUILDABLES=[
-  {id:'bridge',  name:'Bridge',   icon:'ti-bridge',  desc:'Cross water gaps', cost:{wood:3,stone:2},  lvl:1, mode:'bridge'},
-  {id:'furnace', name:'Furnace',  icon:'ti-flame',   desc:'Smelts ore → iron', cost:{stone:8,plank:4}, lvl:2, mode:'place'},
-  {id:'forge',   name:'Forge',    icon:'ti-tool',    desc:'Unlocks advanced crafting', cost:{stone:12,iron:4}, lvl:4, needs:'furnace', mode:'place'},
-  {id:'market',  name:'Market',   icon:'ti-building-store', desc:'Generates gold', cost:{plank:10,gold:4}, lvl:5, needs:'forge', mode:'place'},
+  {id:'bridge',    name:'Bridge',    desc:'Cross water gaps',          cost:{wood:3,stone:2},  lvl:1, mode:'bridge'},
+  {id:'workbench', name:'Workbench', desc:'Craft planks, rope & more', cost:{wood:8,stone:4},  lvl:1, mode:'place'},
+  {id:'furnace',   name:'Furnace',   desc:'Smelts ore → iron',         cost:{stone:8,plank:4}, lvl:2, mode:'place'},
+  {id:'forge',     name:'Forge',     desc:'Unlocks advanced crafting',  cost:{stone:12,iron:4}, lvl:4, needs:'furnace', mode:'place'},
+  {id:'market',    name:'Market',    desc:'Generates gold',             cost:{plank:10,gold:4}, lvl:5, needs:'forge',   mode:'place'},
 ];
 
 let inv={wood:0,stone:0,food:0,wheat:0,plank:0,stone_block:0,gold:30,iron:0,ore:0,gold_ore:0,cactus_spine:0,sand:0,reed:0,mud:0,herb:0};
@@ -131,6 +170,7 @@ let structures=[],bridges=new Set();
 let xp=0,lvl=1,lastT=0,autoTimer=0,msgTimer=null;
 let activeMode=null;
 let buildMenuOpen=false,settingsOpen=false,showFPS=false,fps=0,fpsTimer=0,fpsCount=0;
+let workbenchOpen=false,activeWorkbench=null;
 let islandGrid=[],landTiles={};
 
 // ---- WORLD ----
@@ -245,7 +285,14 @@ function renderBuildMenu(){
 // ---- INPUT ----
 window.addEventListener('keydown',e=>{
   keys[e.key.toLowerCase()]=true;
-  if(e.key==='Escape'){activeMode=null;closeBuildMenu();settingsOpen=false;document.getElementById('settings-panel').style.display='none';updateUI();}
+  if(e.key==='Escape'){
+    if(workbenchOpen){closeWorkbench();return;}
+    activeMode=null;closeBuildMenu();settingsOpen=false;document.getElementById('settings-panel').style.display='none';updateUI();
+  }
+  if(e.key.toLowerCase()==='e'&&!workbenchOpen){
+    const wb=getNearbyWorkbench();
+    if(wb)openWorkbench(wb);
+  }
   if(e.key==='-'||e.key==='_')setZoom(zoom-ZOOM_STEP);
   if(e.key==='='||e.key==='+')setZoom(zoom+ZOOM_STEP);
 });
@@ -389,6 +436,63 @@ function tryBuyIsland(isl){
   showMsg(`${isl.biome||'Island'} unlocked!`);updateUI();saveGame();
 }
 
+function getNearbyWorkbench(){
+  return structures.find(s=>s.type==='workbench'&&Math.hypot(player.x-(s.wx*TS+TS/2),player.y-(s.wy*TS+TS/2))<TS*2.2);
+}
+
+function openWorkbench(struct){
+  workbenchOpen=true;activeWorkbench=struct;
+  closeBuildMenu();
+  const ui=document.getElementById('workbench-ui');
+  const panel=document.getElementById('workbench-panel');
+  const overlay=document.getElementById('workbench-overlay');
+  ui.style.display='flex';
+  panel.classList.remove('open');
+  overlay.classList.remove('open');
+  const sx=(struct.wx*TS+TS/2-cam.x)*zoom;
+  const sy=(struct.wy*TS+TS/2-cam.y)*zoom;
+  requestAnimationFrame(()=>{
+    const r=panel.getBoundingClientRect();
+    panel.style.transformOrigin=`${sx-r.left}px ${sy-r.top}px`;
+    requestAnimationFrame(()=>{panel.classList.add('open');overlay.classList.add('open');});
+  });
+  renderWorkbenchRecipes();
+}
+
+function closeWorkbench(){
+  workbenchOpen=false;activeWorkbench=null;
+  const panel=document.getElementById('workbench-panel');
+  const overlay=document.getElementById('workbench-overlay');
+  panel.classList.remove('open');overlay.classList.remove('open');
+  setTimeout(()=>{document.getElementById('workbench-ui').style.display='none';},300);
+}
+
+function renderWorkbenchRecipes(){
+  document.getElementById('wb-recipes').innerHTML=RECIPES.map(r=>{
+    const canCraft=Object.entries(r.inputs).every(([k,v])=>(inv[k]||0)>=v);
+    const inputsHtml=Object.entries(r.inputs).map(([k,v])=>{
+      const have=inv[k]||0;const ok=have>=v;
+      return`<span style="color:${ok?'#81c784':'#e57373'}">${v} ${k}<span style="opacity:.6"> (${have})</span></span>`;
+    }).join('<span class="wb-arrow">+</span>');
+    const outputsHtml=Object.entries(r.outputs).map(([k,v])=>`<span class="wb-out">${v} ${k}</span>`).join(', ');
+    return`<div class="wb-recipe${canCraft?'':' wb-disabled'}" onclick="craftItem('${r.id}')">
+      <div class="wb-rname">${r.name}</div>
+      <div class="wb-costs">${inputsHtml}<span class="wb-arrow">→</span>${outputsHtml}<span style="color:#888;margin-left:auto">+${r.xp}xp</span></div>
+    </div>`;
+  }).join('');
+}
+
+function craftItem(id){
+  const r=RECIPES.find(x=>x.id===id);if(!r)return;
+  if(!Object.entries(r.inputs).every(([k,v])=>(inv[k]||0)>=v)){showMsg('Not enough materials');return;}
+  Object.entries(r.inputs).forEach(([k,v])=>inv[k]-=v);
+  Object.entries(r.outputs).forEach(([k,v])=>inv[k]=(inv[k]||0)+v);
+  gainXP(r.xp);
+  showMsg('+'+Object.entries(r.outputs).map(([k,v])=>`${v} ${k}`).join(', '));
+  updateUI();saveGame();
+  renderWorkbenchRecipes();
+}
+
 function gainXP(a){xp+=a;const n=XP_TABLE[lvl]||99999;if(xp>=n&&lvl<10){lvl++;xp-=n;showMsg('LEVEL UP! Lv '+lvl);}updateUI();}
 
 function autoStep(dt){
@@ -445,12 +549,38 @@ function drawRes(res,cx,cy,hp,maxHp,biome){
 }
 
 function drawStruct(type,cx,cy){
-  const s=TS*.35,C={furnace:'#bf360c',forge:'#37474f',market:'#1565c0'};
+  const s=TS*.35,C={furnace:'#bf360c',forge:'#37474f',market:'#1565c0',workbench:'#5d4037'};
   ctx.save();ctx.translate(cx,cy);
-  ctx.fillStyle=C[type]||'#888';ctx.fillRect(-s,-s,s*2,s*2);
-  ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(-s,-s,s*2,s*2);
-  ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText({furnace:'FRN',forge:'FRG',market:'MKT'}[type]||'?',0,0);
+  if(type==='workbench'){
+    // draw a little table
+    ctx.fillStyle='#6d4c41';ctx.fillRect(-s,-s*.5,s*2,s*.9);
+    ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=1.5;ctx.strokeRect(-s,-s*.5,s*2,s*.9);
+    ctx.fillStyle='#4e342e';
+    ctx.fillRect(-s+2,s*.4,s*.35,s*.6);ctx.fillRect(s*.65,s*.4,s*.35,s*.6);
+    ctx.fillRect(-s+2,-s*.5-s*.25,s*.35,s*.3);ctx.fillRect(s*.65,-s*.5-s*.25,s*.35,s*.3);
+    ctx.fillStyle='#8d6e63';ctx.font='bold 8px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('WB',0,-s*.05);
+  } else {
+    ctx.fillStyle=C[type]||'#888';ctx.fillRect(-s,-s,s*2,s*2);
+    ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(-s,-s,s*2,s*2);
+    ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText({furnace:'FRN',forge:'FRG',market:'MKT'}[type]||'?',0,0);
+  }
+  ctx.restore();
+}
+
+function drawEKey(wx,wy){
+  const bob=Math.sin(Date.now()/320)*3;
+  const px=(wx*TS+TS/2-cam.x)*zoom;
+  const py=(wy*TS-14-cam.y)*zoom+bob*zoom;
+  ctx.save();ctx.translate(px,py);
+  const sc=zoom;ctx.scale(sc,sc);
+  ctx.fillStyle='rgba(0,0,0,.35)';roundRect(ctx,-11,3,22,6,3);ctx.fill();
+  ctx.fillStyle='#e8e0d0';ctx.strokeStyle='#555';ctx.lineWidth=1.5;
+  roundRect(ctx,-11,-11,22,20,4);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#f5f0e8';roundRect(ctx,-9,-9,18,14,3);ctx.fill();
+  ctx.fillStyle='#222';ctx.font='bold 11px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('E',0,-2);
   ctx.restore();
 }
 
@@ -478,6 +608,7 @@ let lastMX,lastMY;
 canvas.addEventListener('mousemove',e=>{lastMX=e.clientX;lastMY=e.clientY;});
 
 function update(dt){
+  if(workbenchOpen)return;
   const spd=player.spd*(dt/1000);
   let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])dy=-1;
@@ -562,6 +693,8 @@ function draw(ts){
   drawActiveModeHint();
 
   ctx.restore();
+  // E key prompt for nearby workbench (screen-space, after restore so it doesn't scale strangely)
+  if(!workbenchOpen){const wb=getNearbyWorkbench();if(wb)drawEKey(wb.wx,wb.wy);}
   // FPS counter
   fpsCount++;fpsTimer+=dt;
   if(fpsTimer>=1000){fps=fpsCount;fpsCount=0;fpsTimer=0;}
