@@ -78,6 +78,8 @@ canvas{display:block;position:fixed;top:0;left:0}
     </select>
   </div>
   <div class="setting-row"><span>Show FPS</span><button onclick="toggleFPS()"><span id="fps-lbl">Off</span></button></div>
+  <div class="setting-row"><span>Save game</span><button onclick="saveGame()">Save</button></div>
+  <div class="setting-row"><span>Load game</span><button onclick="loadGame(true)">Load</button></div>
   <div class="setting-row"><span>Reset world</span><button onclick="confirmReset()">Reset</button></div>
 </div>
 
@@ -257,8 +259,47 @@ function toggleFPS(){
   showFPS=!showFPS;
   document.getElementById('fps-lbl').textContent=showFPS?'On':'Off';
 }
+function saveGame(){
+  const islandData=[];
+  for(let iy=0;iy<ISLAND_GRID;iy++)for(let ix=0;ix<ISLAND_GRID;ix++){
+    const isl=islandGrid[iy][ix];
+    islandData.push({ix,iy,owned:isl.owned,shape:{cells:[...isl.shape.cells],w:isl.shape.w,h:isl.shape.h}});
+  }
+  const tileStates={};
+  for(const[key,t]of Object.entries(landTiles))tileStates[key]={res:t.res,resHp:t.resHp,resMax:t.resMax,resTimer:t.resTimer,_lastRes:t._lastRes,alt:t.alt};
+  const data={v:1,inv,xp,lvl,player:{x:player.x,y:player.y,spd:player.spd,dir:player.dir},zoom,structures,bridges:[...bridges],islandData,tileStates};
+  localStorage.setItem('rethrival_save',JSON.stringify(data));
+  showMsg('Game saved');
+}
+
+function loadGame(manual){
+  const raw=localStorage.getItem('rethrival_save');
+  if(!raw){if(manual)showMsg('No save found');return false;}
+  let d;try{d=JSON.parse(raw);}catch{if(manual)showMsg('Save corrupted');return false;}
+  Object.keys(inv).forEach(k=>inv[k]=0);Object.assign(inv,d.inv);
+  xp=d.xp;lvl=d.lvl;
+  Object.assign(player,d.player);
+  structures=d.structures||[];
+  bridges=new Set(d.bridges||[]);
+  // restore island shapes & ownership
+  landTiles={};
+  for(const id of d.islandData){
+    const isl=islandGrid[id.iy][id.ix];
+    isl.shape={cells:new Set(id.shape.cells),w:id.shape.w,h:id.shape.h};
+    isl.owned=id.owned;
+    if(id.owned)buildTiles(isl);
+  }
+  // overlay saved tile states (res hp, timers, alt)
+  for(const[key,ts]of Object.entries(d.tileStates||{})){if(landTiles[key])Object.assign(landTiles[key],ts);}
+  setZoom(d.zoom||1);
+  updateUI();
+  if(manual)showMsg('Game loaded');
+  return true;
+}
+
 function confirmReset(){
   if(confirm('Reset the world? All progress will be lost.')){
+    localStorage.removeItem('rethrival_save');
     Object.keys(inv).forEach(k=>inv[k]=0);inv.gold=30;
     xp=0;lvl=1;structures=[];bridges=new Set();activeMode=null;
     landTiles={};for(let iy=0;iy<ISLAND_GRID;iy++)for(let ix=0;ix<ISLAND_GRID;ix++)islandGrid[iy][ix].owned=false;
@@ -299,7 +340,7 @@ function gatherTile(twx,twy){
     Object.entries(loot).forEach(([k,v])=>inv[k]=(inv[k]||0)+v);
     gainXP(RES_XP[t.res]||5);
     showMsg('+'+Object.entries(loot).map(([k,v])=>`${v} ${k}`).join(', '));
-    t.resTimer=Date.now();t._lastRes=t.res;t.res=null;updateUI();
+    t.resTimer=Date.now();t._lastRes=t.res;t.res=null;updateUI();saveGame();
   }
 }
 
@@ -310,7 +351,7 @@ function tryBridge(twx,twy){
   if(!adj.some(([dx,dy])=>{const k=`${twx+dx},${twy+dy}`;return landTiles[k]||bridges.has(k);})){showMsg('Must connect to land');return;}
   const b=BUILDABLES.find(x=>x.id==='bridge');
   if(!canAfford(b.cost)){showMsg(`Need: ${costStr(b.cost)}`);activeMode=null;updateUI();return;}
-  spendCost(b.cost);bridges.add(key);showMsg('Bridge placed');updateUI();
+  spendCost(b.cost);bridges.add(key);showMsg('Bridge placed');updateUI();saveGame();
 }
 
 function tryPlaceStructure(type,twx,twy){
@@ -322,13 +363,13 @@ function tryPlaceStructure(type,twx,twy){
   spendCost(b.cost);
   structures.push({type,wx:twx,wy:twy});
   gainXP(30);showMsg(`${b.name} built!`);
-  activeMode=null;updateUI();
+  activeMode=null;updateUI();saveGame();
 }
 
 function tryBuyIsland(isl){
   if(inv.gold<isl.cost){showMsg(`Need ${isl.cost} gold`);return;}
   inv.gold-=isl.cost;isl.owned=true;buildTiles(isl);gainXP(50);
-  showMsg(`${isl.biome||'Island'} unlocked!`);updateUI();
+  showMsg(`${isl.biome||'Island'} unlocked!`);updateUI();saveGame();
 }
 
 function gainXP(a){xp+=a;const n=XP_TABLE[lvl]||99999;if(xp>=n&&lvl<10){lvl++;xp-=n;showMsg('LEVEL UP! Lv '+lvl);}updateUI();}
@@ -527,6 +568,6 @@ function updateUI(){
   if(buildMenuOpen)renderBuildMenu();
 }
 
-initWorld();updateUI();requestAnimationFrame(draw);
+initWorld();if(!loadGame(false))updateUI();requestAnimationFrame(draw);
 </script>
 </body></html>
