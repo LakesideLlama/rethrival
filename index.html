@@ -282,16 +282,26 @@ function loadGame(manual){
   Object.assign(player,d.player);
   structures=d.structures||[];
   bridges=new Set(d.bridges||[]);
-  // restore island shapes & ownership
+  // restore island shapes & ownership, rebuild tiles directly from saved states
   landTiles={};
+  const ts=d.tileStates||{};
   for(const id of d.islandData){
     const isl=islandGrid[id.iy][id.ix];
     isl.shape={cells:new Set(id.shape.cells),w:id.shape.w,h:id.shape.h};
     isl.owned=id.owned;
-    if(id.owned)buildTiles(isl);
+    isl.tiles=[];
+    if(id.owned){
+      isl.shape.cells.forEach(k=>{
+        const[lx,ly]=k.split(',').map(Number);
+        const wx=isl.wx+lx,wy=isl.wy+ly,key=`${wx},${wy}`;
+        const s=ts[key];
+        const t=s
+          ?{wx,wy,biome:isl.biome,alt:s.alt,res:s.res,resHp:s.resHp,resMax:s.resMax,resTimer:s.resTimer,_lastRes:s._lastRes}
+          :{wx,wy,biome:isl.biome,alt:Math.random()<0.3,res:null,resHp:0,resMax:0,resTimer:0,_lastRes:null};
+        isl.tiles.push(t);landTiles[key]=t;
+      });
+    }
   }
-  // overlay saved tile states (res hp, timers, alt)
-  for(const[key,ts]of Object.entries(d.tileStates||{})){if(landTiles[key])Object.assign(landTiles[key],ts);}
   setZoom(d.zoom||1);
   updateUI();
   if(manual)showMsg('Game loaded');
