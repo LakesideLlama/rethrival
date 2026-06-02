@@ -5,6 +5,17 @@ import { gainXP, updateUI } from './ui.js';
 import { saveGame } from './save.js';
 import { buildTiles } from './world.js';
 
+// Sword blade occupies world pixels 8–28 from player center (ctx.translate(8,0) + lineTo(20,0))
+const BLADE_MIN = 8, BLADE_MAX = 28;
+// Collision radii matched to each resource's drawn sprite (s = TS*0.32 ≈ 15.4px)
+const RES_COL_R = {
+  tree: 12, reed: 10,
+  rock: 14, sand_rock: 14, mud_rock: 14,
+  bush: 12, herb: 12,
+  wheat: 13, dune: 13,
+  cactus: 9,
+};
+
 export function swingAttack() {
   const swingDir = player.dir;
   player.swingT = Date.now();
@@ -14,11 +25,15 @@ export function swingAttack() {
   for (const t of Object.values(landTiles)) {
     if (!t.res) continue;
     const tx = t.wx * TS + TS / 2, ty = t.wy * TS + TS / 2;
-    if (Math.hypot(player.x - tx, player.y - ty) > player.mineRange) continue;
+    const d = Math.hypot(tx - player.x, ty - player.y);
+    const r = RES_COL_R[t.res] || 12;
+    // Radial: blade must overlap the sprite circle
+    if (d > BLADE_MAX + r || d < Math.max(0, BLADE_MIN - r)) continue;
+    // Angular: sprite's half-width at distance d widens the valid arc
     let diff = Math.atan2(ty - player.y, tx - player.x) - swingDir;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    if (Math.abs(diff) > SWING_ARC / 2) continue;
+    if (Math.abs(diff) > SWING_ARC / 2 + Math.atan2(r, Math.max(d, 1))) continue;
 
     t.resHp--;
     if (t.resHp <= 0) {
