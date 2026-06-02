@@ -1,4 +1,4 @@
-import { TS, ISLAND_GRID, BC, SWING_DUR, RECIPES } from './constants.js';
+import { TS, ISLAND_GRID, BC, SWING_DUR, SWING_ARC, RECIPES } from './constants.js';
 import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers } from './state.js';
 import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
@@ -94,8 +94,8 @@ export function drawPlayer() {
   const swingAge = now - player.swingT;
   const swinging = swingAge < SWING_DUR;
   const swordAng = swinging
-    ? (player.swingDir + Math.PI * 0.55) - (Math.PI * 0.7) * 0.4 + (Math.PI * 0.7) * (swingAge / SWING_DUR)
-    : player.dir + Math.PI * 0.55;
+    ? (player.swingDir - SWING_ARC / 2) + SWING_ARC * (swingAge / SWING_DUR)
+    : player.dir - SWING_ARC / 2 + 0.15;
   const px = player.x, py = player.y;
   ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(8, 0);
   ctx.strokeStyle = '#cfd8dc'; ctx.lineWidth = 3; ctx.lineCap = 'round';
