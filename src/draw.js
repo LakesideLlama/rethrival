@@ -1,5 +1,5 @@
-import { TS, ISLAND_GRID, BC, SWING_DUR } from './constants.js';
-import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode } from './state.js';
+import { TS, ISLAND_GRID, BC, SWING_DUR, RECIPES } from './constants.js';
+import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers } from './state.js';
 import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
 import { getNearbyWorkbench } from './workbench.js';
@@ -49,6 +49,21 @@ export function drawStruct(type, cx, cy) {
     ctx.fillRect(-s + 2, -s * .5 - s * .25, s * .35, s * .3); ctx.fillRect(s * .65, -s * .5 - s * .25, s * .35, s * .3);
     ctx.fillStyle = '#8d6e63'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('WB', 0, -s * .05);
+    // Progress ring for active background craft
+    const now = Date.now();
+    const activeCraft = RECIPES.find(r => craftTimers[r.id] && now < craftTimers[r.id].end);
+    if (activeCraft) {
+      const ct = craftTimers[activeCraft.id];
+      const pct = (ct.duration - (ct.end - now)) / ct.duration;
+      const rad = s * 0.72, oy = -s * 1.35;
+      ctx.beginPath(); ctx.arc(0, oy, rad, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fill();
+      ctx.strokeStyle = '#2a3a2a'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, oy, rad, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+      ctx.strokeStyle = '#4fc3f7'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.fillStyle = '#eee'; ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(Object.keys(activeCraft.outputs)[0], 0, oy);
+    }
   } else {
     const C = { furnace: '#bf360c', forge: '#37474f', market: '#1565c0' };
     ctx.fillStyle = C[type] || '#888'; ctx.fillRect(-s, -s, s * 2, s * 2);

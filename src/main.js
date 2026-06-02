@@ -10,6 +10,7 @@ import { drawScene } from './draw.js';
 import { updatePlayerMovement } from './input.js';
 import { gatherTile } from './actions.js';
 import { screenToWorld } from './utils.js';
+import { initCraftTick } from './workbench.js';
 
 document.getElementById('s-speed')?.addEventListener('change', function () {
   player.spd = +this.value;
@@ -68,4 +69,5 @@ function gameLoop(ts) {
 
 initWorld();
 if (!loadGame(false)) updateUI();
+initCraftTick();
 requestAnimationFrame(ts => { setLastT(ts); requestAnimationFrame(gameLoop); });
