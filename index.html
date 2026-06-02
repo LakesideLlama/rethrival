@@ -174,6 +174,8 @@ let activeMode=null;
 let buildMenuOpen=false,settingsOpen=false,showFPS=false,fps=0,fpsTimer=0,fpsCount=0;
 let workbenchOpen=false,activeWorkbench=null;
 const craftTimers={};
+let drops=[]; // {id,x,y,vx,vy,item,qty,born,collected}
+let _dropId=0;
 let islandGrid=[],landTiles={};
 
 // ---- WORLD ----
@@ -405,9 +407,13 @@ function gatherTile(twx,twy){
   t.resHp--;
   if(t.resHp<=0){
     const loot=(RES_LOOT[t.res]||{})();
-    Object.entries(loot).forEach(([k,v])=>inv[k]=(inv[k]||0)+v);
+    const cx=twx*TS+TS/2,cy=twy*TS+TS/2;
     gainXP(RES_XP[t.res]||5);
-    showMsg('+'+Object.entries(loot).map(([k,v])=>`${v} ${k}`).join(', '));
+    Object.entries(loot).forEach(([item,qty])=>{
+      const angle=Math.random()*Math.PI*2;
+      const spd=rnd(20,55);
+      drops.push({id:_dropId++,x:cx,y:cy,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,item,qty,born:Date.now(),collected:false});
+    });
     t.resTimer=Date.now();t._lastRes=t.res;t.res=null;updateUI();saveGame();
   }
 }
@@ -537,6 +543,76 @@ function craftItem(id){
   updateUI();saveGame();
   renderWorkbenchRecipes();
   startWbTick();
+}
+
+const DROP_PICKUP_RANGE=TS*1.4;
+const DROP_ATTRACT_RANGE=TS*2.5;
+const DROP_EXPIRE=45000;
+const ITEM_COLORS={wood:'#8d6e3a',stone:'#9e9e9e',food:'#66bb6a',wheat:'#f9a825',plank:'#a1887f',stone_block:'#78909c',gold:'#ffd54f',iron:'#b0bec5',ore:'#8d6e63',reed:'#aed581',mud:'#795548',herb:'#ab47bc',sand:'#ffe082',cactus_spine:'#81c784',mud_brick:'#a1887f',rope:'#c8a96e',potion:'#e040fb',gold_ore:'#ffd54f'};
+
+function updateDrops(dt){
+  const now=Date.now();
+  const friction=Math.pow(0.012,dt/1000);
+  const collected=[];
+  for(let i=drops.length-1;i>=0;i--){
+    const d=drops[i];
+    if(d.collected){collected.push(i);continue;}
+    if(now-d.born>DROP_EXPIRE){drops.splice(i,1);continue;}
+    const age=(now-d.born)/1000;
+    // friction
+    d.vx*=friction;d.vy*=friction;
+    const dist=Math.hypot(player.x-d.x,player.y-d.y);
+    if(dist<DROP_ATTRACT_RANGE&&age>0.25){
+      // attract toward player
+      const spd=Math.max(80,(DROP_ATTRACT_RANGE-dist)/DROP_ATTRACT_RANGE*320);
+      const ang=Math.atan2(player.y-d.y,player.x-d.x);
+      d.vx+=Math.cos(ang)*spd*(dt/1000)*6;
+      d.vy+=Math.sin(ang)*spd*(dt/1000)*6;
+    }
+    d.x+=d.vx*(dt/1000);
+    d.y+=d.vy*(dt/1000);
+    if(dist<DROP_PICKUP_RANGE&&age>0.15){
+      inv[d.item]=(inv[d.item]||0)+d.qty;
+      d.collected=true;
+    }
+  }
+  if(collected.length){
+    // remove collected in reverse order
+    for(let i=collected.length-1;i>=0;i--)drops.splice(collected[i],1);
+    updateUI();saveGame();
+  }
+}
+
+function drawDrops(){
+  const now=Date.now();
+  for(const d of drops){
+    const age=(now-d.born)/1000;
+    const life=(now-d.born)/DROP_EXPIRE;
+    // fade out in last 5s
+    const alpha=life>0.88?1-(life-0.88)/0.12:1;
+    const bob=Math.sin(now/400+d.id)*3;
+    const scale=Math.min(1,age*4); // pop-in
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.translate(d.x,d.y+bob);
+    ctx.scale(scale,scale);
+    // shadow
+    ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.beginPath();ctx.ellipse(0,6,10,4,0,0,Math.PI*2);ctx.fill();
+    // pill background
+    const col=ITEM_COLORS[d.item]||'#aaa';
+    ctx.fillStyle=col;
+    ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=1.5;
+    roundRect(ctx,-14,-10,28,20,10);ctx.fill();ctx.stroke();
+    // inner highlight
+    ctx.fillStyle='rgba(255,255,255,.18)';
+    roundRect(ctx,-12,-8,24,9,7);ctx.fill();
+    // text
+    ctx.fillStyle='#fff';ctx.font='bold 8px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    const label=d.qty>1?`${d.qty} ${d.item}`:d.item;
+    ctx.fillText(label,0,0);
+    ctx.restore();
+  }
 }
 
 function gainXP(a){xp+=a;const n=XP_TABLE[lvl]||99999;if(xp>=n&&lvl<10){lvl++;xp-=n;showMsg('LEVEL UP! Lv '+lvl);}updateUI();}
@@ -674,7 +750,7 @@ function update(dt){
 
 function draw(ts){
   const dt=Math.min(ts-lastT,100);lastT=ts;
-  update(dt);respawnCheck();autoStep(dt);
+  update(dt);respawnCheck();autoStep(dt);updateDrops(dt);
 
   ctx.fillStyle='#0d2344';ctx.fillRect(0,0,W,H);
   ctx.save();
@@ -729,6 +805,9 @@ function draw(ts){
     ctx.fillStyle='#fff';ctx.font='11px monospace';ctx.fillText('🪙 '+isl.cost+' to unlock',cx,cy+10);
     ctx.restore();
   }
+
+  // drops (world-space, below player)
+  drawDrops();
 
   // player
   ctx.fillStyle='#ffca28';ctx.beginPath();ctx.arc(player.x,player.y,10,0,Math.PI*2);ctx.fill();
