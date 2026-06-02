@@ -1,32 +1,39 @@
-import { TS, BUILDABLES, RES_LOOT, RES_XP } from './constants.js';
+import { TS, SWING_ARC, BUILDABLES, RES_LOOT, RES_XP } from './constants.js';
 import { player, inv, landTiles, bridges, structures, drops, nextDropId, activeMode, setActiveMode } from './state.js';
-import { showMsg, costStr, canAfford, spendCost } from './utils.js';
+import { showMsg, costStr, canAfford, spendCost, rnd } from './utils.js';
 import { gainXP, updateUI } from './ui.js';
 import { saveGame } from './save.js';
 import { buildTiles } from './world.js';
-import { rnd } from './utils.js';
 
-export function gatherTile(twx, twy) {
-  const t = landTiles[`${twx},${twy}`];
-  if (!t || !t.res) return;
-  if (Math.hypot(player.x - (twx * TS + TS / 2), player.y - (twy * TS + TS / 2)) > player.mineRange) {
-    showMsg('Too far away'); return;
+export function swingAttack() {
+  const swingDir = player.dir;
+  player.swingT = Date.now();
+  player.swingDir = swingDir;
+
+  let anyDied = false;
+  for (const t of Object.values(landTiles)) {
+    if (!t.res) continue;
+    const tx = t.wx * TS + TS / 2, ty = t.wy * TS + TS / 2;
+    if (Math.hypot(player.x - tx, player.y - ty) > player.mineRange) continue;
+    let diff = Math.atan2(ty - player.y, tx - player.x) - swingDir;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) > SWING_ARC / 2) continue;
+
+    t.resHp--;
+    if (t.resHp <= 0) {
+      const loot = (RES_LOOT[t.res] || (() => ({})))();
+      gainXP(RES_XP[t.res] || 5);
+      Object.entries(loot).forEach(([item, qty]) => {
+        const angle = Math.random() * Math.PI * 2;
+        const spd = rnd(20, 55);
+        drops.push({ id: nextDropId(), x: tx, y: ty, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, item, qty, born: Date.now(), collected: false });
+      });
+      t.resTimer = Date.now(); t._lastRes = t.res; t.res = null;
+      anyDied = true;
+    }
   }
-  t.resHp--;
-  player.dir = Math.atan2(twy * TS + TS / 2 - player.y, twx * TS + TS / 2 - player.x);
-  player.swingT = Date.now(); player.swingDir = player.dir;
-  if (t.resHp <= 0) {
-    const loot = (RES_LOOT[t.res] || (() => ({})))();
-    const cx = twx * TS + TS / 2, cy = twy * TS + TS / 2;
-    gainXP(RES_XP[t.res] || 5);
-    Object.entries(loot).forEach(([item, qty]) => {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = rnd(20, 55);
-      drops.push({ id: nextDropId(), x: cx, y: cy, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, item, qty, born: Date.now(), collected: false });
-    });
-    t.resTimer = Date.now(); t._lastRes = t.res; t.res = null;
-    updateUI(); saveGame();
-  }
+  if (anyDied) { updateUI(); saveGame(); }
 }
 
 export function tryBridge(twx, twy) {

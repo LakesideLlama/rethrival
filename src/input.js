@@ -2,12 +2,12 @@ import { ZOOM_STEP, CELL, ISLAND_GRID } from './constants.js';
 import {
   canvas, keys, player, landTiles, bridges, cam, zoom, W, H,
   workbenchOpen, activeMode, buildMenuOpen, islandGrid,
-  setLastMouse, setActiveMode, setMouseHeld,
+  setLastMouse, setActiveMode, setMouseHeld, lastMX, lastMY,
 } from './state.js';
 import { screenToWorld } from './utils.js';
 import { setZoom, toggleBuildMenu, closeBuildMenu, toggleSettings, toggleFPS, updateUI } from './ui.js';
 import { openWorkbench, closeWorkbench, getNearbyWorkbench } from './workbench.js';
-import { gatherTile, tryBridge, tryPlaceStructure, tryBuyIsland } from './actions.js';
+import { tryBridge, tryPlaceStructure, tryBuyIsland } from './actions.js';
 import { adjOwned } from './world.js';
 import { saveGameManual, loadGame, confirmReset } from './save.js';
 
@@ -83,6 +83,11 @@ window.closeWorkbench = closeWorkbench;
 
 export function updatePlayerMovement(dt) {
   if (workbenchOpen) return;
+  // Always face cursor
+  if (lastMX !== undefined) {
+    const wx = cam.x + lastMX / zoom, wy = cam.y + lastMY / zoom;
+    player.dir = Math.atan2(wy - player.y, wx - player.x);
+  }
   const spd = player.spd * (dt / 1000);
   let dx = 0, dy = 0;
   if (keys['w'] || keys['arrowup']) dy = -1;
@@ -90,7 +95,6 @@ export function updatePlayerMovement(dt) {
   if (keys['a'] || keys['arrowleft']) dx = -1;
   if (keys['d'] || keys['arrowright']) dx = 1;
   if (dx && dy) { dx *= 0.707; dy *= 0.707; }
-  if (dx || dy) player.dir = Math.atan2(dy, dx);
   const nx = player.x + dx * spd, ny = player.y + dy * spd;
   const TS = 48;
   const tkx = Math.floor(nx / TS), tky = Math.floor(ny / TS);

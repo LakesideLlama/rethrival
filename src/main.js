@@ -1,15 +1,14 @@
 import './style.css';
 import './input.js';
 import { ATTACK_INTERVAL } from './constants.js';
-import { ctx, W, H, zoom, showFPS, fps, fpsTimer, fpsCount, lastT, setLastT, setFps, setFpsTimer, setFpsCount, player, workbenchOpen, mouseHeld, lastMX, lastMY } from './state.js';
+import { ctx, W, H, zoom, showFPS, fps, fpsTimer, fpsCount, lastT, setLastT, setFps, setFpsTimer, setFpsCount, workbenchOpen, mouseHeld } from './state.js';
 import { initWorld, respawnCheck, autoStep } from './world.js';
 import { loadGame, confirmReset } from './save.js';
 import { updateUI } from './ui.js';
 import { updateDrops } from './drops.js';
 import { drawScene } from './draw.js';
 import { updatePlayerMovement } from './input.js';
-import { gatherTile } from './actions.js';
-import { screenToWorld } from './utils.js';
+import { swingAttack } from './actions.js';
 import { initCraftTick } from './workbench.js';
 
 document.getElementById('s-speed')?.addEventListener('change', function () {
@@ -32,13 +31,12 @@ function gameLoop(ts) {
     autoStep(dt, updateUI);
   }
 
-  // Hold-to-attack: fire at ATTACK_INTERVAL rate while mouse is held over a resource tile
-  if (mouseHeld && !workbenchOpen && lastMX !== undefined) {
+  // Hold-to-attack: fire at ATTACK_INTERVAL rate while mouse button held
+  if (mouseHeld && !workbenchOpen) {
     _attackTimer += dt;
     if (_attackTimer >= ATTACK_INTERVAL) {
       _attackTimer = 0;
-      const { wx, wy } = screenToWorld(lastMX, lastMY);
-      gatherTile(wx, wy);
+      swingAttack();
     }
   } else {
     // Reset timer so next press fires immediately
