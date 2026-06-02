@@ -9,7 +9,7 @@ export const ZOOM_STEP = 0.1;
 export const SWING_DUR = 280;
 export const ATTACK_INTERVAL = 350; // ms between auto-attacks when holding click
 
-export const DROP_PICKUP_RANGE = TS * 1.4;
+export const DROP_PICKUP_RANGE = TS * 0.25;
 export const DROP_ATTRACT_RANGE = TS * 1.5;
 export const DROP_EXPIRE = 45000;
 
