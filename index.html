@@ -546,7 +546,7 @@ function craftItem(id){
 }
 
 const DROP_PICKUP_RANGE=TS*1.4;
-const DROP_ATTRACT_RANGE=TS*2.5;
+const DROP_ATTRACT_RANGE=TS*1.5;
 const DROP_EXPIRE=45000;
 const ITEM_COLORS={wood:'#8d6e3a',stone:'#9e9e9e',food:'#66bb6a',wheat:'#f9a825',plank:'#a1887f',stone_block:'#78909c',gold:'#ffd54f',iron:'#b0bec5',ore:'#8d6e63',reed:'#aed581',mud:'#795548',herb:'#ab47bc',sand:'#ffe082',cactus_spine:'#81c784',mud_brick:'#a1887f',rope:'#c8a96e',potion:'#e040fb',gold_ore:'#ffd54f'};
 
@@ -569,8 +569,18 @@ function updateDrops(dt){
       d.vx+=Math.cos(ang)*spd*(dt/1000)*6;
       d.vy+=Math.sin(ang)*spd*(dt/1000)*6;
     }
-    d.x+=d.vx*(dt/1000);
-    d.y+=d.vy*(dt/1000);
+    const nx=d.x+d.vx*(dt/1000);
+    const ny=d.y+d.vy*(dt/1000);
+    const tkx=Math.floor(nx/TS),tky=Math.floor(ny/TS);
+    const onLand=landTiles[`${tkx},${tky}`]||bridges.has(`${tkx},${tky}`);
+    if(onLand){d.x=nx;d.y=ny;}
+    else{
+      // try sliding along each axis separately, reflect velocity
+      const onX=landTiles[`${Math.floor(nx/TS)},${Math.floor(d.y/TS)}`]||bridges.has(`${Math.floor(nx/TS)},${Math.floor(d.y/TS)}`);
+      const onY=landTiles[`${Math.floor(d.x/TS)},${Math.floor(ny/TS)}`]||bridges.has(`${Math.floor(d.x/TS)},${Math.floor(ny/TS)}`);
+      if(onX){d.x=nx;d.vx*=0.4;}else{d.vx*=-0.4;}
+      if(onY){d.y=ny;d.vy*=0.4;}else{d.vy*=-0.4;}
+    }
     if(dist<DROP_PICKUP_RANGE&&age>0.15){
       inv[d.item]=(inv[d.item]||0)+d.qty;
       d.collected=true;
