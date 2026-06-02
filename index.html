@@ -173,7 +173,7 @@ let xp=0,lvl=1,lastT=0,autoTimer=0,msgTimer=null;
 let activeMode=null;
 let buildMenuOpen=false,settingsOpen=false,showFPS=false,fps=0,fpsTimer=0,fpsCount=0;
 let workbenchOpen=false,activeWorkbench=null;
-const craftTimers={}; // id -> {end, duration}
+const craftTimers={};
 let islandGrid=[],landTiles={};
 
 // ---- WORLD ----
@@ -453,7 +453,6 @@ function openWorkbench(struct){
   // compute workbench screen position before showing panel
   const sx=(struct.wx*TS+TS/2-cam.x)*zoom;
   const sy=(struct.wy*TS+TS/2-cam.y)*zoom;
-  // panel is centered (flexbox), so its top-left offset from viewport center
   const pw=Math.min(500,window.innerWidth*0.9);
   const ph=Math.min(window.innerHeight*0.8,500);
   const originX=sx-(W/2-pw/2);
