@@ -57,3 +57,5 @@ export let islandGrid = [];
 export const landTiles = {};
 export let lastMX, lastMY;
 export function setLastMouse(x, y) { lastMX = x; lastMY = y; }
+export let mouseHeld = false, heldWx = 0, heldWy = 0;
+export function setMouseHeld(held, wx, wy) { mouseHeld = held; if (wx !== undefined) { heldWx = wx; heldWy = wy; } }

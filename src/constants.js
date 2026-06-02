@@ -7,6 +7,7 @@ export const ZOOM_MAX = 1;
 export const ZOOM_STEP = 0.1;
 
 export const SWING_DUR = 280;
+export const ATTACK_INTERVAL = 350; // ms between auto-attacks when holding click
 
 export const DROP_PICKUP_RANGE = TS * 1.4;
 export const DROP_ATTRACT_RANGE = TS * 1.5;
@@ -30,7 +31,7 @@ export const BIOME_RES = {
   marsh:  ['reed','mud_rock','herb'],
 };
 
-export const RES_HP = { tree:3, rock:4, bush:2, wheat:1, cactus:3, sand_rock:4, dune:2, reed:2, mud_rock:4, herb:1 };
+export const RES_HP = { tree:7, rock:10, bush:5, wheat:3, cactus:7, sand_rock:10, dune:5, reed:5, mud_rock:10, herb:3 };
 
 export const RES_LOOT = {
   tree:     () => ({ wood: rnd(2,4) }),

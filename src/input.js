@@ -2,7 +2,7 @@ import { ZOOM_STEP, CELL, ISLAND_GRID } from './constants.js';
 import {
   canvas, keys, player, landTiles, bridges, cam, zoom, W, H,
   workbenchOpen, activeMode, buildMenuOpen, islandGrid,
-  setLastMouse, setActiveMode,
+  setLastMouse, setActiveMode, setMouseHeld,
 } from './state.js';
 import { screenToWorld } from './utils.js';
 import { setZoom, toggleBuildMenu, closeBuildMenu, toggleSettings, toggleFPS, updateUI } from './ui.js';
@@ -37,28 +37,40 @@ canvas.addEventListener('wheel', e => {
   setZoom(zoom - Math.sign(e.deltaY) * ZOOM_STEP);
 }, { passive: false });
 
+canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  if (buildMenuOpen && !activeMode) closeBuildMenu();
+  if (workbenchOpen || activeMode) return;
+  setMouseHeld(true);
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (e.button !== 0) return;
+  setMouseHeld(false);
+});
+
+// Cancel hold if mouse leaves canvas
+canvas.addEventListener('mouseleave', () => setMouseHeld(false));
+
+canvas.addEventListener('mousemove', e => setLastMouse(e.clientX, e.clientY));
+
 canvas.addEventListener('click', e => {
   const { wx: twx, wy: twy } = screenToWorld(e.clientX, e.clientY);
-  const key = `${twx},${twy}`;
   if (activeMode === 'bridge') { tryBridge(twx, twy); return; }
   if (activeMode && activeMode.startsWith('place:')) {
     tryPlaceStructure(activeMode.split(':')[1], twx, twy); return;
   }
-  if (landTiles[key]) { gatherTile(twx, twy); return; }
-  for (let iy = 0; iy < ISLAND_GRID; iy++) for (let ix = 0; ix < ISLAND_GRID; ix++) {
-    const isl = islandGrid[iy][ix];
-    if (!isl || isl.owned || !adjOwned(isl)) continue;
-    if (twx >= isl.wx && twx < isl.wx + CELL && twy >= isl.wy && twy < isl.wy + CELL) {
-      tryBuyIsland(isl); return;
+  // Island buying (resource gathering is handled by hold-attack in game loop)
+  if (!landTiles[`${twx},${twy}`]) {
+    for (let iy = 0; iy < ISLAND_GRID; iy++) for (let ix = 0; ix < ISLAND_GRID; ix++) {
+      const isl = islandGrid[iy][ix];
+      if (!isl || isl.owned || !adjOwned(isl)) continue;
+      if (twx >= isl.wx && twx < isl.wx + CELL && twy >= isl.wy && twy < isl.wy + CELL) {
+        tryBuyIsland(isl); return;
+      }
     }
   }
 });
-
-canvas.addEventListener('mousedown', () => {
-  if (buildMenuOpen && !activeMode) closeBuildMenu();
-});
-
-canvas.addEventListener('mousemove', e => setLastMouse(e.clientX, e.clientY));
 
 // Expose globals needed by inline HTML onclick handlers
 window.toggleBuildMenu = toggleBuildMenu;
