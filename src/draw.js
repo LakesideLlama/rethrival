@@ -1,5 +1,5 @@
 import { TS, ISLAND_GRID, BC, SWING_DUR, SWING_ARC, RECIPES } from './constants.js';
-import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers, camShake, setCamShake } from './state.js';
+import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers } from './state.js';
 import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
 import { getNearbyWorkbench } from './workbench.js';
@@ -140,13 +140,7 @@ export function drawScene() {
   ctx.fillStyle = '#0d2344'; ctx.fillRect(0, 0, W, H);
   ctx.save();
   ctx.scale(zoom, zoom);
-  let sx = 0, sy = 0;
-  if (camShake > 0) {
-    sx = (Math.random() - 0.5) * camShake * 2;
-    sy = (Math.random() - 0.5) * camShake * 2;
-    setCamShake(camShake * 0.72);
-  }
-  ctx.translate(-cam.x + sx, -cam.y + sy);
+  ctx.translate(-cam.x, -cam.y);
 
   // ocean grid
   ctx.strokeStyle = 'rgba(255,255,255,.03)'; ctx.lineWidth = 1;
@@ -162,7 +156,18 @@ export function drawScene() {
     const bc = BC[t.biome] || BC.plains;
     ctx.fillStyle = t.alt ? bc.alt : bc.base; ctx.fillRect(px, py, TS, TS);
     ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = .5; ctx.strokeRect(px, py, TS, TS);
-    if (t.res) drawRes(t.res, px + TS / 2, py + TS / 2, t.resHp, t.resMax || 1, t.biome);
+    if (t.res) {
+      let ox = 0;
+      if (t.hitT) {
+        const age = now - t.hitT;
+        if (age < 350) {
+          ox = Math.sin(age * 0.09) * 2.5 * (1 - age / 350);
+        } else {
+          t.hitT = null;
+        }
+      }
+      drawRes(t.res, px + TS / 2 + ox, py + TS / 2, t.resHp, t.resMax || 1, t.biome);
+    }
   }
 
   // bridges
