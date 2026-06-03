@@ -1,5 +1,5 @@
 import { TS, ISLAND_GRID, BC, SWING_DUR, SWING_ARC, RECIPES } from './constants.js';
-import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers } from './state.js';
+import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers, camShake, setCamShake } from './state.js';
 import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
 import { getNearbyWorkbench } from './workbench.js';
@@ -93,8 +93,11 @@ export function drawPlayer() {
   const now = Date.now();
   const swingAge = now - player.swingT;
   const swinging = swingAge < SWING_DUR;
+  // Ease-in (t²): slow wind-up, fast release for a weighty feel
+  const t = swingAge / SWING_DUR;
+  const et = t * t;
   const swordAng = swinging
-    ? (player.swingDir - SWING_ARC / 2) + SWING_ARC * (swingAge / SWING_DUR)
+    ? (player.swingDir - SWING_ARC / 2) + SWING_ARC * et
     : player.dir - SWING_ARC / 2 + 0.15;
   const px = player.x, py = player.y;
   ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(8, 0);
@@ -108,8 +111,9 @@ export function drawPlayer() {
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-7, 0); ctx.stroke();
   ctx.fillStyle = '#9e9e9e'; ctx.beginPath(); ctx.arc(-7, 0, 2.5, 0, Math.PI * 2); ctx.fill();
   if (swinging) {
-    ctx.globalAlpha = (1 - swingAge / SWING_DUR) * 0.25;
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 12;
+    // Trail is brightest mid-swing (when the blade is moving fastest)
+    ctx.globalAlpha = Math.sin(t * Math.PI) * 0.45;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 18;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
     ctx.globalAlpha = 1;
   }
@@ -133,7 +137,13 @@ export function drawScene() {
   ctx.fillStyle = '#0d2344'; ctx.fillRect(0, 0, W, H);
   ctx.save();
   ctx.scale(zoom, zoom);
-  ctx.translate(-cam.x, -cam.y);
+  let sx = 0, sy = 0;
+  if (camShake > 0) {
+    sx = (Math.random() - 0.5) * camShake * 2;
+    sy = (Math.random() - 0.5) * camShake * 2;
+    setCamShake(camShake * 0.72);
+  }
+  ctx.translate(-cam.x + sx, -cam.y + sy);
 
   // ocean grid
   ctx.strokeStyle = 'rgba(255,255,255,.03)'; ctx.lineWidth = 1;

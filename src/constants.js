@@ -6,7 +6,7 @@ export const ZOOM_MIN = 0.4;
 export const ZOOM_MAX = 1;
 export const ZOOM_STEP = 0.1;
 
-export const SWING_DUR = 280;
+export const SWING_DUR = 420;
 export const SWING_ARC = Math.PI * 1.2; // ~216 degrees — wide sweep in front
 export const ATTACK_INTERVAL = 350; // ms between auto-attacks when holding click
 
