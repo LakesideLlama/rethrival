@@ -17,6 +17,7 @@ const RES_COL_R = {
 };
 
 export function swingAttack() {
+  player.swingSide = -player.swingSide; // alternate left↔right each swing
   const swingDir = player.dir;
   player.swingT = Date.now();
   player.swingDir = swingDir;

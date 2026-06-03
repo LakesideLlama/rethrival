@@ -96,9 +96,12 @@ export function drawPlayer() {
   // Ease-in (t²): slow wind-up, fast release for a weighty feel
   const t = swingAge / SWING_DUR;
   const et = t * t;
+  const side = player.swingSide; // 1 = heading right, -1 = heading left
   const swordAng = swinging
-    ? (player.swingDir - SWING_ARC / 2) + SWING_ARC * et
-    : player.dir - SWING_ARC / 2 + 0.15;
+    ? side > 0
+      ? (player.swingDir - SWING_ARC / 2) + SWING_ARC * et  // left → right
+      : (player.swingDir + SWING_ARC / 2) - SWING_ARC * et  // right → left
+    : player.dir + side * (SWING_ARC / 2 - 0.15); // rest on the side we ended on
   const px = player.x, py = player.y;
   ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(8, 0);
   ctx.strokeStyle = '#cfd8dc'; ctx.lineWidth = 3; ctx.lineCap = 'round';
