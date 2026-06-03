@@ -1,7 +1,7 @@
 import './style.css';
 import './input.js';
-import { ATTACK_INTERVAL } from './constants.js';
-import { ctx, W, H, zoom, showFPS, fps, fpsTimer, fpsCount, lastT, setLastT, setFps, setFpsTimer, setFpsCount, workbenchOpen, mouseHeld } from './state.js';
+import { ATTACK_INTERVAL, SWING_DUR } from './constants.js';
+import { ctx, W, H, zoom, showFPS, fps, fpsTimer, fpsCount, lastT, setLastT, setFps, setFpsTimer, setFpsCount, workbenchOpen, mouseHeld, player } from './state.js';
 import { initWorld, respawnCheck, autoStep } from './world.js';
 import { loadGame, confirmReset } from './save.js';
 import { updateUI } from './ui.js';
@@ -31,10 +31,10 @@ function gameLoop(ts) {
     autoStep(dt, updateUI);
   }
 
-  // Hold-to-attack: fire at ATTACK_INTERVAL rate while mouse button held
+  // Hold-to-attack: wait for both the interval AND the current swing to finish
   if (mouseHeld && !workbenchOpen) {
     _attackTimer += dt;
-    if (_attackTimer >= ATTACK_INTERVAL) {
+    if (_attackTimer >= ATTACK_INTERVAL && Date.now() - player.swingT >= SWING_DUR) {
       _attackTimer = 0;
       swingAttack();
     }
