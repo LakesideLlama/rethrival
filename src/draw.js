@@ -137,6 +137,7 @@ export function drawActiveModeHint() {
 }
 
 export function drawScene() {
+  const now = Date.now();
   ctx.fillStyle = '#0d2344'; ctx.fillRect(0, 0, W, H);
   ctx.save();
   ctx.scale(zoom, zoom);
