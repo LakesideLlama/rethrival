@@ -1,6 +1,6 @@
 import { ZOOM_STEP, CELL, ISLAND_GRID } from './constants.js';
 import {
-  canvas, keys, player, landTiles, bridges, cam, zoom, W, H,
+  canvas, keys, player, landTiles, bridges, structures, cam, zoom, W, H,
   workbenchOpen, activeMode, buildMenuOpen, islandGrid,
   setLastMouse, setActiveMode, setMouseHeld, lastMX, lastMY,
 } from './state.js';
@@ -99,8 +99,15 @@ export function updatePlayerMovement(dt) {
   const TS = 48;
   const tkx = Math.floor(nx / TS), tky = Math.floor(ny / TS);
   const tky2 = Math.floor(player.y / TS), tkx2 = Math.floor(player.x / TS);
-  if (landTiles[`${tkx},${tky2}`] || bridges.has(`${tkx},${tky2}`)) player.x = Math.max(8, nx);
-  if (landTiles[`${tkx2},${tky}`] || bridges.has(`${tkx2},${tky}`)) player.y = Math.max(8, ny);
+  const canEnter = (tx, ty) => {
+    const key = `${tx},${ty}`;
+    if (!landTiles[key] && !bridges.has(key)) return false;
+    if (landTiles[key]?.res) return false;
+    if (structures.some(s => s.wx === tx && s.wy === ty)) return false;
+    return true;
+  };
+  if (canEnter(tkx, tky2)) player.x = Math.max(8, nx);
+  if (canEnter(tkx2, tky)) player.y = Math.max(8, ny);
   cam.x = player.x - W / (2 * zoom);
   cam.y = player.y - H / (2 * zoom);
 }

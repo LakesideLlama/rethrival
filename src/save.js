@@ -1,7 +1,7 @@
 import { ISLAND_GRID } from './constants.js';
 import {
   inv, player, structures, bridges, xp, lvl, zoom, islandGrid, landTiles, craftTimers,
-  setStructures, setBridges, setXp, setLvl, setZoom,
+  setStructures, setBridges, setXp, setLvl, setZoom, discovered,
 } from './state.js';
 import { buildTiles } from './world.js';
 import { updateUI } from './ui.js';
@@ -12,7 +12,7 @@ export function saveGame() {
   for (let iy = 0; iy < ISLAND_GRID; iy++)
     for (let ix = 0; ix < ISLAND_GRID; ix++) {
       const isl = islandGrid[iy][ix];
-      islandData.push({ ix, iy, owned: isl.owned, shape: { cells: [...isl.shape.cells], w: isl.shape.w, h: isl.shape.h } });
+      islandData.push({ ix, iy, owned: isl.owned, respawnRate: isl.respawnRate, shape: { cells: [...isl.shape.cells], w: isl.shape.w, h: isl.shape.h } });
     }
   const tileStates = {};
   for (const [key, t] of Object.entries(landTiles))
@@ -21,6 +21,7 @@ export function saveGame() {
     v: 1, inv, xp, lvl,
     player: { x: player.x, y: player.y, spd: player.spd, dir: player.dir },
     zoom, structures, bridges: [...bridges], islandData, tileStates,
+    discovered: [...discovered],
   };
   localStorage.setItem('rethrival_save', JSON.stringify(data));
 }
@@ -48,6 +49,7 @@ export function loadGame(manual) {
     const isl = islandGrid[id.iy][id.ix];
     isl.shape = { cells: new Set(id.shape.cells), w: id.shape.w, h: id.shape.h };
     isl.owned = id.owned;
+    isl.respawnRate = id.respawnRate || 30000;
     isl.tiles = [];
     if (id.owned) {
       isl.shape.cells.forEach(k => {
@@ -55,12 +57,16 @@ export function loadGame(manual) {
         const wx = isl.wx + lx, wy = isl.wy + ly, key = `${wx},${wy}`;
         const s = ts[key];
         const t = s
-          ? { wx, wy, biome: isl.biome, alt: s.alt, res: s.res, resHp: s.resHp, resMax: s.resMax, resTimer: s.resTimer, _lastRes: s._lastRes }
-          : { wx, wy, biome: isl.biome, alt: Math.random() < 0.3, res: null, resHp: 0, resMax: 0, resTimer: 0, _lastRes: null };
+          ? { wx, wy, biome: isl.biome, alt: s.alt, res: s.res, resHp: s.resHp, resMax: s.resMax, resTimer: s.resTimer, _lastRes: s._lastRes, respawnRate: isl.respawnRate }
+          : { wx, wy, biome: isl.biome, alt: Math.random() < 0.3, res: null, resHp: 0, resMax: 0, resTimer: 0, _lastRes: null, respawnRate: isl.respawnRate };
         isl.tiles.push(t); landTiles[key] = t;
       });
     }
   }
+  // Restore discovered items; fall back to scanning inv if save pre-dates this feature
+  discovered.clear();
+  if (d.discovered) { d.discovered.forEach(i => discovered.add(i)); }
+  else { Object.entries(inv).forEach(([k, v]) => { if (v > 0) discovered.add(k); }); }
   setZoom(d.zoom || 1);
   updateUI();
   if (manual) showMsg('Game loaded');

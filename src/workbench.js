@@ -1,5 +1,5 @@
 import { TS, RECIPES } from './constants.js';
-import { player, structures, workbenchOpen, activeWorkbench, craftTimers, inv, setWorkbenchOpen, setActiveWorkbench } from './state.js';
+import { player, structures, workbenchOpen, activeWorkbench, craftTimers, inv, setWorkbenchOpen, setActiveWorkbench, discovered } from './state.js';
 import { showMsg } from './utils.js';
 import { closeBuildMenu, updateUI, gainXP } from './ui.js';
 import { saveGame } from './save.js';
@@ -43,13 +43,15 @@ export function closeWorkbench() {
 }
 
 function maxCraftQty(r) {
+  if (Object.keys(r.inputs).some(k => !discovered.has(k))) return 0;
   return Math.floor(Math.min(...Object.entries(r.inputs).map(([k, v]) => Math.floor((inv[k] || 0) / v))));
 }
 
 function qtyBtn(id, qty, label) {
   const r = RECIPES.find(x => x.id === id);
   const isCrafting = craftTimers[id] && Date.now() < craftTimers[id].end;
-  const canDo = !isCrafting && qty > 0 && Object.entries(r.inputs).every(([k, v]) => (inv[k] || 0) >= v * qty);
+  const allKnown = Object.keys(r.inputs).every(k => discovered.has(k));
+  const canDo = allKnown && !isCrafting && qty > 0 && Object.entries(r.inputs).every(([k, v]) => (inv[k] || 0) >= v * qty);
   return `<button class="wb-qty${canDo ? ' can-craft' : ''}" ${canDo ? `onclick="craftItem('${id}',${qty})"` : 'disabled'}>${label}</button>`;
 }
 
@@ -60,10 +62,13 @@ export function renderWorkbenchRecipes() {
     const isCrafting = ct && now < ct.end;
     const maxQty = maxCraftQty(r);
     const inputsHtml = Object.entries(r.inputs).map(([k, v]) => {
+      if (!discovered.has(k)) return `<span style="color:#556">???</span>`;
       const have = inv[k] || 0; const ok = have >= v;
       return `<span style="color:${ok ? '#81c784' : '#e57373'}">${v} ${k}<span style="opacity:.6"> (${have})</span></span>`;
     }).join('<span class="wb-arrow">+</span>');
-    const outputsHtml = Object.entries(r.outputs).map(([k, v]) => `<span class="wb-out">${v} ${k}</span>`).join(', ');
+    const outputsHtml = Object.entries(r.outputs).map(([k, v]) =>
+      `<span class="wb-out">${discovered.has(k) ? `${v} ${k}` : '???'}</span>`
+    ).join(', ');
     const timerPct = isCrafting ? Math.round((1 - (ct.end - now) / ct.duration) * 100) : 0;
     const craftQty = ct?.qty || 1;
 

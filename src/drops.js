@@ -1,5 +1,5 @@
 import { TS, DROP_PICKUP_RANGE, DROP_ATTRACT_RANGE, DROP_EXPIRE, ITEM_COLORS } from './constants.js';
-import { drops, player, landTiles, bridges, inv } from './state.js';
+import { drops, player, landTiles, bridges, inv, discover } from './state.js';
 import { roundRect } from './utils.js';
 import { ctx } from './state.js';
 import { updateUI } from './ui.js';
@@ -33,7 +33,7 @@ export function updateDrops(dt) {
       if (onY) { d.y = ny; d.vy *= 0.4; } else { d.vy *= -0.4; }
     }
     if (dist < DROP_PICKUP_RANGE && age > 0.15) {
-      d.collected = true; inv[d.item] = (inv[d.item] || 0) + d.qty;
+      d.collected = true; inv[d.item] = (inv[d.item] || 0) + d.qty; discover(d.item);
     }
   }
   if (collected.length) {
