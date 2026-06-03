@@ -1,5 +1,5 @@
 import { TS, SWING_ARC, BUILDABLES, RES_LOOT, RES_XP } from './constants.js';
-import { player, inv, landTiles, bridges, structures, drops, nextDropId, activeMode, setActiveMode } from './state.js';
+import { player, inv, landTiles, bridges, structures, drops, nextDropId, activeMode, setActiveMode, setCamShake } from './state.js';
 import { showMsg, costStr, canAfford, spendCost, rnd } from './utils.js';
 import { gainXP, updateUI } from './ui.js';
 import { saveGame } from './save.js';
@@ -36,6 +36,7 @@ export function swingAttack() {
     if (Math.abs(diff) > SWING_ARC / 2 + Math.atan2(r, Math.max(d, 1))) continue;
 
     t.resHp--;
+    setCamShake(3.5);
     if (t.resHp <= 0) {
       const loot = (RES_LOOT[t.res] || (() => ({})))();
       gainXP(RES_XP[t.res] || 5);
