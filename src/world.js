@@ -1,4 +1,4 @@
-import { TS, ISLAND_GRID, CELL, BIOMES, BIOME_RES, RES_HP, RESPAWN } from './constants.js';
+import { TS, ISLAND_GRID, CELL, BIOMES, BIOME_RES, RES_HP } from './constants.js';
 import { islandGrid, landTiles, player, structures, inv } from './state.js';
 import { rnd } from './utils.js';
 
@@ -32,12 +32,13 @@ export function genShape() {
 export function buildTiles(isl) {
   isl.tiles = [];
   const rt = BIOME_RES[isl.biome] || BIOME_RES.plains;
+  const respawnRate = isl.respawnRate || 30000;
   isl.shape.cells.forEach(k => {
     const [lx, ly] = k.split(',').map(Number);
     const wx = isl.wx + lx, wy = isl.wy + ly, key = `${wx},${wy}`;
     let res = null, resHp = 0;
     if (Math.random() < 0.28) { res = rt[Math.floor(Math.random() * rt.length)]; resHp = RES_HP[res]; }
-    const t = { wx, wy, biome: isl.biome, alt: Math.random() < 0.3, res, resHp, resMax: resHp, resTimer: 0, _lastRes: res };
+    const t = { wx, wy, biome: isl.biome, alt: Math.random() < 0.3, res, resHp, resMax: resHp, resTimer: 0, _lastRes: res, respawnRate };
     isl.tiles.push(t); landTiles[key] = t;
   });
 }
@@ -59,7 +60,7 @@ export function initWorld() {
       const owned = ix === 4 && iy === 4;
       const dist = Math.max(Math.abs(ix - 4), Math.abs(iy - 4));
       const cost = Math.floor(20 * Math.pow(1.8, dist));
-      const isl = { ix, iy, biome, shape, owned, cost, wx, wy, tiles: [] };
+      const isl = { ix, iy, biome, shape, owned, cost, wx, wy, tiles: [], respawnRate: 30000 };
       islandGrid[iy][ix] = isl;
       if (owned) buildTiles(isl);
     }
@@ -67,12 +68,17 @@ export function initWorld() {
   const ci = islandGrid[4][4];
   player.x = (ci.wx + Math.floor(ci.shape.w / 2)) * TS + TS / 2;
   player.y = (ci.wy + Math.floor(ci.shape.h / 2)) * TS + TS / 2;
+  // Clear spawn tile so the player doesn't start inside a resource
+  const spawnKey = `${Math.floor(player.x / TS)},${Math.floor(player.y / TS)}`;
+  if (landTiles[spawnKey]) { landTiles[spawnKey].res = null; landTiles[spawnKey].resHp = 0; }
 }
 
 export function respawnCheck() {
   const now = Date.now();
+  const ptx = Math.floor(player.x / TS), pty = Math.floor(player.y / TS);
   for (const t of Object.values(landTiles)) {
-    if (!t.res && t.resTimer > 0 && now - t.resTimer > (RESPAWN[t._lastRes] || 20000)) {
+    if (!t.res && t.resTimer > 0 && now - t.resTimer > (t.respawnRate || 30000)) {
+      if (t.wx === ptx && t.wy === pty) continue; // never respawn under the player
       const rt = BIOME_RES[t.biome] || BIOME_RES.plains;
       t.res = rt[Math.floor(Math.random() * rt.length)];
       t.resHp = RES_HP[t.res]; t.resMax = t.resHp; t.resTimer = 0;
@@ -81,7 +87,6 @@ export function respawnCheck() {
 }
 
 export function autoStep(dt, updateUI) {
-  // autoTimer is managed in main.js to avoid circular state imports
   let ch = false;
   for (const s of structures) {
     if (s.type === 'furnace' && inv.ore > 0) { inv.ore--; inv.iron = (inv.iron || 0) + 1; ch = true; }
