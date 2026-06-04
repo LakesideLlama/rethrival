@@ -239,7 +239,7 @@ function nodeAt(tx, ty) {
   const cx = starCanvas.width / 2, cy = starCanvas.height / 2;
   for (const node of RESEARCH) {
     const pos = nodePos(node, cx, cy);
-    const r = (node.ring === 3 ? 5.5 : node.ring === 2 ? 4 : 3) * 5 + 10;
+    const r = (node.ring === 3 ? 5.5 : node.ring === 2 ? 4 : 3) * 1.25;
     if (Math.hypot(tx - pos.x, ty - pos.y) <= r) return node;
   }
   return null;
