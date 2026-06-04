@@ -93,15 +93,23 @@ export function drawPlayer() {
   const now = Date.now();
   const swingAge = now - player.swingT;
   const swinging = swingAge < SWING_DUR;
-  // Ease-in (t²): slow wind-up, fast release for a weighty feel
+  const side = player.swingSide;
+  // Two-phase: fast strike (0–30%) then slow pull-back (30–100%)
   const t = swingAge / SWING_DUR;
-  const et = t * t;
-  const side = player.swingSide; // 1 = heading right, -1 = heading left
+  const IMPACT_AT = 0.30;
+  let animT;
+  if (t <= IMPACT_AT) {
+    const p = t / IMPACT_AT;
+    animT = p * p;           // ease-in snap to impact
+  } else {
+    const p = (t - IMPACT_AT) / (1 - IMPACT_AT);
+    animT = 1 - p * p;       // ease-out slow return
+  }
+  const restAngle  = player.dir + side * (SWING_ARC / 2 - 0.15);
+  const impactAngle = player.dir - side * 0.25;
   const swordAng = swinging
-    ? side > 0
-      ? (player.swingDir - SWING_ARC / 2) + SWING_ARC * et  // left → right
-      : (player.swingDir + SWING_ARC / 2) - SWING_ARC * et  // right → left
-    : player.dir + side * (SWING_ARC / 2 - 0.15); // rest on the side we ended on
+    ? restAngle + (impactAngle - restAngle) * animT
+    : restAngle;
   const px = player.x, py = player.y;
   ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(8, 0);
   ctx.strokeStyle = '#cfd8dc'; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -114,8 +122,8 @@ export function drawPlayer() {
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-7, 0); ctx.stroke();
   ctx.fillStyle = '#9e9e9e'; ctx.beginPath(); ctx.arc(-7, 0, 2.5, 0, Math.PI * 2); ctx.fill();
   if (swinging) {
-    // Trail is brightest mid-swing (when the blade is moving fastest)
-    ctx.globalAlpha = Math.sin(t * Math.PI) * 0.45;
+    // Trail peaks at impact then fades during pull-back
+    ctx.globalAlpha = (1 - Math.abs(animT - 1) ) * 0.45;
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 18;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
     ctx.globalAlpha = 1;
