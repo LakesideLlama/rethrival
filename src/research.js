@@ -78,9 +78,10 @@ function animLoop() {
     const pitch = PITCH_START + (PITCH_END - PITCH_START) * e;
     const starAlpha = Math.min(raw * 2.5, 1);
     drawStars(pitch, starAlpha);
-    // darken overlay fades in with sweep
+    // Overlay blacks out the game canvas quickly (first 20% of anim), then stays solid
+    const overlayAlpha = Math.min(raw / 0.2, 1);
     const overlay = document.getElementById('research-overlay');
-    if (overlay) overlay.style.background = `rgba(0,0,10,${0.82 * e})`;
+    if (overlay) overlay.style.background = `rgba(0,0,10,${overlayAlpha})`;
     if (raw >= 1) {
       animState = 'open';
       showPanel();
@@ -95,8 +96,10 @@ function animLoop() {
     const pitch = PITCH_END + (PITCH_START - PITCH_END) * e;
     const starAlpha = 1 - e;
     drawStars(pitch, starAlpha);
+    // Keep overlay solid until the last 20% of close, then fade to reveal game
+    const overlayAlpha = raw < 0.8 ? 1 : 1 - (raw - 0.8) / 0.2;
     const overlay = document.getElementById('research-overlay');
-    if (overlay) overlay.style.background = `rgba(0,0,10,${0.82 * (1 - e)})`;
+    if (overlay) overlay.style.background = `rgba(0,0,10,${overlayAlpha})`;
     if (raw >= 1) {
       animState = 'idle';
       const ui = document.getElementById('research-ui');
