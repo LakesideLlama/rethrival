@@ -58,7 +58,7 @@ function drawStars(pitch, alpha, bgAlpha) {
   starCtx.globalAlpha = 1;
 }
 
-// ── Animation state ───────────────────────────────────────────────────────────
+// ── Animation ─────────────────────────────────────────────────────────────────
 let animState = 'idle';
 let animStart = 0;
 const ANIM_DUR = 1400;
@@ -81,10 +81,10 @@ function animLoop() {
     const pitch = PITCH_START + (PITCH_END - PITCH_START) * e;
     const bgAlpha = Math.min(raw / 0.15, 1);
     drawStars(pitch, e, bgAlpha);
-    if (raw >= 1) { animState = 'open'; showPanel(); }
+    if (raw >= 1) animState = 'open';
   } else if (animState === 'open') {
     drawStars(PITCH_END, 1, 1);
-    drawTreeLoop();
+    drawTree(starCtx, starCanvas.width, starCanvas.height);
   } else if (animState === 'closing') {
     const pitch = PITCH_END + (PITCH_START - PITCH_END) * e;
     const bgAlpha = Math.max(0, Math.min(1 - (raw - 0.85) / 0.15, 1));
@@ -92,27 +92,13 @@ function animLoop() {
     if (raw >= 1) {
       animState = 'idle';
       document.getElementById('research-ui').style.display = 'none';
-      if (starCtx) starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+      starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
       rafId = null;
       return;
     }
   }
 
   rafId = requestAnimationFrame(animLoop);
-}
-
-function showPanel() {
-  const panel = document.getElementById('research-panel');
-  if (!panel) return;
-  panel.style.opacity = '0';
-  panel.style.transform = 'translateY(20px)';
-  panel.style.display = 'flex';
-  requestAnimationFrame(() => {
-    panel.style.transition = 'opacity .35s, transform .35s';
-    panel.style.opacity = '1';
-    panel.style.transform = 'translateY(0)';
-  });
-  initTreeCanvas();
 }
 
 // ── Open / close ──────────────────────────────────────────────────────────────
@@ -124,30 +110,20 @@ export function openResearch() {
     if (starCanvas) { starCanvas.width = window.innerWidth; starCanvas.height = window.innerHeight; }
     window.addEventListener('resize', () => {
       if (starCanvas) { starCanvas.width = window.innerWidth; starCanvas.height = window.innerHeight; }
-      resizeTreeCanvas();
     });
     initStars();
+    initOverlay();
   }
   setResearchOpen(true);
   animState = 'opening';
   animStart = Date.now();
-  const ui = document.getElementById('research-ui');
-  if (ui) ui.style.display = 'flex';
-  const panel = document.getElementById('research-panel');
-  if (panel) panel.style.display = 'none';
+  document.getElementById('research-ui').style.display = 'flex';
   if (rafId) cancelAnimationFrame(rafId);
   rafId = requestAnimationFrame(animLoop);
 }
 
 export function closeResearch() {
   if (animState === 'idle') return;
-  const panel = document.getElementById('research-panel');
-  if (panel) {
-    panel.style.transition = 'opacity .2s, transform .2s';
-    panel.style.opacity = '0';
-    panel.style.transform = 'translateY(20px)';
-    setTimeout(() => { if (panel) panel.style.display = 'none'; }, 220);
-  }
   animState = 'closing';
   animStart = Date.now();
   setResearchOpen(false);
@@ -155,34 +131,56 @@ export function closeResearch() {
   rafId = requestAnimationFrame(animLoop);
 }
 
-// ── Radial tree canvas ────────────────────────────────────────────────────────
-let treeCanvas, treeCtx;
+// ── Overlay mouse events ──────────────────────────────────────────────────────
 let hoveredNode = null;
 
-// Section layout: center angle (radians), label
-const SECTIONS = {
-  red:    { angle: -Math.PI / 2,  label: 'Combat',      color: '#e53935', glow: 'rgba(229,57,53,.35)' },
-  green:  { angle: 0,             label: 'Nature',      color: '#43a047', glow: 'rgba(67,160,71,.35)' },
-  blue:   { angle: Math.PI / 2,   label: 'Crafting',    color: '#1e88e5', glow: 'rgba(30,136,229,.35)' },
-  yellow: { angle: Math.PI,       label: 'Exploration', color: '#f9a825', glow: 'rgba(249,168,37,.35)' },
-};
+function initOverlay() {
+  const overlay = document.getElementById('research-overlay');
+  if (!overlay) return;
+  overlay.addEventListener('mousemove', e => {
+    const node = nodeAt(e.clientX, e.clientY);
+    hoveredNode = node ? node.id : null;
+    overlay.style.cursor = node ? 'pointer' : 'default';
+  });
+  overlay.addEventListener('mouseleave', () => { hoveredNode = null; });
+  overlay.addEventListener('click', e => {
+    const node = nodeAt(e.clientX, e.clientY);
+    if (node) tryUnlock(node);
+    else closeResearch();
+  });
+}
 
-// Radii per ring
-const RING_R = [0, 82, 148, 210];
-// Angular spread per ring (two slots = ±this many radians from section center)
-const RING_SPREAD = [0, 0.38, 0.3, 0];
+// ── Radial tree drawing ───────────────────────────────────────────────────────
+const SECTIONS = {
+  red:    { angle: -Math.PI / 2, label: 'Combat',      color: '#e53935', glow: '#e53935' },
+  green:  { angle: 0,            label: 'Nature',      color: '#43a047', glow: '#43a047' },
+  blue:   { angle: Math.PI / 2,  label: 'Crafting',    color: '#1e88e5', glow: '#1e88e5' },
+  yellow: { angle: Math.PI,      label: 'Exploration', color: '#f9a825', glow: '#f9a825' },
+};
+const RING_R   = [0, 90, 160, 230];
+const RING_SPREAD = [0, 0.36, 0.28, 0];
 
 function nodePos(node, cx, cy) {
   const sec = SECTIONS[node.section];
-  const spread = node.ring < 3 ? (node.slot === 0 ? -RING_SPREAD[node.ring] : RING_SPREAD[node.ring]) : 0;
-  // ring-3 has only slot 0 centred
-  const angle = sec.angle + (node.ring === 3 ? 0 : spread);
+  const spread = node.ring === 3 ? 0 : (node.slot === 0 ? -RING_SPREAD[node.ring] : RING_SPREAD[node.ring]);
+  const angle = sec.angle + spread;
   const r = RING_R[node.ring];
   return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
 }
 
-function starPath(ctx, cx, cy, r, points = 5) {
-  const step = Math.PI / points;
+function nodeAt(mx, my) {
+  if (!starCanvas) return null;
+  const cx = starCanvas.width / 2, cy = starCanvas.height / 2;
+  for (const node of RESEARCH) {
+    const pos = nodePos(node, cx, cy);
+    const r = (node.ring === 3 ? 14 : 11) + 6;
+    if (Math.hypot(mx - pos.x, my - pos.y) <= r) return node;
+  }
+  return null;
+}
+
+function starPath(ctx, cx, cy, r) {
+  const points = 5, step = Math.PI / points;
   ctx.beginPath();
   for (let i = 0; i < points * 2; i++) {
     const rad = i % 2 === 0 ? r : r * 0.42;
@@ -193,89 +191,60 @@ function starPath(ctx, cx, cy, r, points = 5) {
   ctx.closePath();
 }
 
-function initTreeCanvas() {
-  treeCanvas = document.getElementById('tree-c');
-  if (!treeCanvas) return;
-  treeCtx = treeCanvas.getContext('2d');
-  resizeTreeCanvas();
-  treeCanvas.addEventListener('mousemove', onTreeMouseMove);
-  treeCanvas.addEventListener('click', onTreeClick);
-  treeCanvas.addEventListener('mouseleave', () => { hoveredNode = null; });
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
 }
 
-function resizeTreeCanvas() {
-  if (!treeCanvas) return;
-  const panel = document.getElementById('research-panel');
-  if (!panel) return;
-  treeCanvas.width = treeCanvas.offsetWidth;
-  treeCanvas.height = treeCanvas.offsetHeight;
-}
-
-function drawTreeLoop() {
-  if (!treeCtx || !treeCanvas) return;
-  const rpEl = document.getElementById('res-rp');
-  if (rpEl) rpEl.textContent = `✦ ${researchPoints} Research Points`;
-  const W = treeCanvas.width, H = treeCanvas.height;
+function drawTree(ctx, W, H) {
   const cx = W / 2, cy = H / 2;
-  treeCtx.clearRect(0, 0, W, H);
+  const t = Date.now() * 0.001;
 
-  // Section arcs (subtle background wedges)
-  for (const [, sec] of Object.entries(SECTIONS)) {
-    treeCtx.beginPath();
-    treeCtx.moveTo(cx, cy);
-    treeCtx.arc(cx, cy, RING_R[3] + 36, sec.angle - Math.PI / 4, sec.angle + Math.PI / 4);
-    treeCtx.closePath();
-    treeCtx.fillStyle = sec.glow.replace('.35', '.08');
-    treeCtx.fill();
-  }
-
-  // Center hub
-  treeCtx.beginPath();
-  treeCtx.arc(cx, cy, 14, 0, Math.PI * 2);
-  treeCtx.fillStyle = '#1a2a4a';
-  treeCtx.fill();
-  treeCtx.strokeStyle = '#3a5a8a';
-  treeCtx.lineWidth = 1.5;
-  treeCtx.stroke();
-  treeCtx.fillStyle = '#6a9adf';
-  treeCtx.font = 'bold 9px monospace';
-  treeCtx.textAlign = 'center';
-  treeCtx.textBaseline = 'middle';
-  treeCtx.fillText('R', cx, cy);
-
-  // Lines first (behind nodes)
+  // Connection lines
   for (const node of RESEARCH) {
     const pos = nodePos(node, cx, cy);
-    let parentPos;
-    if (node.ring === 1) {
-      parentPos = { x: cx, y: cy };
-    } else if (node.needs) {
-      const parent = RESEARCH.find(r => r.id === node.needs);
-      if (parent) parentPos = nodePos(parent, cx, cy);
+    let parentPos = node.ring === 1 ? { x: cx, y: cy } : null;
+    if (node.ring > 1 && node.needs) {
+      const p = RESEARCH.find(r => r.id === node.needs);
+      if (p) parentPos = nodePos(p, cx, cy);
     }
     if (!parentPos) continue;
     const unlocked = researchUnlocked.has(node.id);
-    const parentUnlocked = node.ring === 1 ? true : researchUnlocked.has(node.needs);
-    treeCtx.beginPath();
-    treeCtx.moveTo(parentPos.x, parentPos.y);
-    treeCtx.lineTo(pos.x, pos.y);
-    treeCtx.strokeStyle = unlocked ? SECTIONS[node.section].color : parentUnlocked ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.07)';
-    treeCtx.lineWidth = unlocked ? 2 : 1;
-    treeCtx.stroke();
+    const parentUnlocked = node.ring === 1 || researchUnlocked.has(node.needs);
+    ctx.beginPath();
+    ctx.moveTo(parentPos.x, parentPos.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = unlocked ? SECTIONS[node.section].color + 'cc'
+      : parentUnlocked ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.05)';
+    ctx.lineWidth = unlocked ? 1.5 : 1;
+    ctx.stroke();
   }
+
+  // Center hub
+  ctx.save();
+  ctx.shadowColor = '#6a9adf';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+  ctx.fillStyle = '#a8c4ff';
+  ctx.fill();
+  ctx.restore();
 
   // Section labels
   for (const [, sec] of Object.entries(SECTIONS)) {
-    const labelR = RING_R[3] + 22;
-    const lx = cx + Math.cos(sec.angle) * labelR;
-    const ly = cy + Math.sin(sec.angle) * labelR;
-    treeCtx.fillStyle = sec.color;
-    treeCtx.globalAlpha = 0.7;
-    treeCtx.font = 'bold 9px monospace';
-    treeCtx.textAlign = 'center';
-    treeCtx.textBaseline = 'middle';
-    treeCtx.fillText(sec.label.toUpperCase(), lx, ly);
-    treeCtx.globalAlpha = 1;
+    const lr = RING_R[3] + 30;
+    ctx.fillStyle = sec.color;
+    ctx.globalAlpha = 0.55;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(sec.label.toUpperCase(), cx + Math.cos(sec.angle) * lr, cy + Math.sin(sec.angle) * lr);
+    ctx.globalAlpha = 1;
   }
 
   // Nodes
@@ -284,27 +253,31 @@ function drawTreeLoop() {
     const sec = SECTIONS[node.section];
     const unlocked = researchUnlocked.has(node.id);
     const needsMet = !node.needs || researchUnlocked.has(node.needs);
-    const canAfford = researchPoints >= node.cost;
     const hovered = hoveredNode === node.id;
     const r = node.ring === 3 ? 13 : 10;
+    const twinkleAmt = unlocked ? (0.8 + 0.2 * Math.sin(t * 2.2 + node.ring)) : 1;
 
-    // Glow for unlocked or hovered+available
-    if (unlocked || (hovered && needsMet)) {
-      treeCtx.save();
-      treeCtx.shadowColor = sec.color;
-      treeCtx.shadowBlur = unlocked ? 14 : 8;
-      starPath(treeCtx, pos.x, pos.y, r + (unlocked ? 2 : 0));
-      treeCtx.fillStyle = unlocked ? sec.color : 'rgba(255,255,255,.1)';
-      treeCtx.fill();
-      treeCtx.restore();
-    } else {
-      starPath(treeCtx, pos.x, pos.y, r);
-      treeCtx.fillStyle = needsMet && canAfford ? sec.color + 'aa' : 'rgba(60,70,100,.7)';
-      treeCtx.fill();
-      treeCtx.strokeStyle = needsMet ? sec.color : 'rgba(255,255,255,.12)';
-      treeCtx.lineWidth = 1;
-      treeCtx.stroke();
+    ctx.save();
+    if (unlocked || hovered) {
+      ctx.shadowColor = sec.glow;
+      ctx.shadowBlur = unlocked ? 18 : 10;
     }
+    starPath(ctx, pos.x, pos.y, r * twinkleAmt);
+    if (unlocked) {
+      ctx.fillStyle = sec.color;
+    } else if (needsMet && researchPoints >= node.cost) {
+      ctx.fillStyle = sec.color + '66';
+      ctx.strokeStyle = sec.color + 'bb';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(80,90,130,.5)';
+      ctx.strokeStyle = 'rgba(255,255,255,.1)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.fill();
+    ctx.restore();
   }
 
   // Tooltip for hovered node
@@ -315,74 +288,71 @@ function drawTreeLoop() {
       const sec = SECTIONS[node.section];
       const unlocked = researchUnlocked.has(node.id);
       const needsMet = !node.needs || researchUnlocked.has(node.needs);
-      const tw = 148, th = 58;
-      let tx = pos.x + 14, ty = pos.y - th / 2;
-      if (tx + tw > W - 8) tx = pos.x - tw - 14;
-      if (ty < 8) ty = 8;
-      if (ty + th > H - 8) ty = H - th - 8;
-      treeCtx.fillStyle = 'rgba(4,8,24,.96)';
-      treeCtx.strokeStyle = sec.color + '88';
-      treeCtx.lineWidth = 1;
-      roundRectCtx(treeCtx, tx, ty, tw, th, 6);
-      treeCtx.fill(); treeCtx.stroke();
-      treeCtx.fillStyle = sec.color;
-      treeCtx.font = 'bold 10px monospace';
-      treeCtx.textAlign = 'left';
-      treeCtx.textBaseline = 'top';
-      treeCtx.fillText(node.name, tx + 8, ty + 8);
-      treeCtx.fillStyle = '#8898cc';
-      treeCtx.font = '9px monospace';
-      treeCtx.fillText(node.desc, tx + 8, ty + 22);
-      treeCtx.fillStyle = unlocked ? '#43a047' : needsMet ? (researchPoints >= node.cost ? '#f9a825' : '#e53935') : '#556';
-      treeCtx.fillText(unlocked ? '✓ Unlocked' : `Cost: ${node.cost} RP  (have: ${researchPoints})`, tx + 8, ty + 36);
-      if (!unlocked && !needsMet) {
-        const parent = RESEARCH.find(r => r.id === node.needs);
-        treeCtx.fillStyle = '#556';
-        treeCtx.fillText(`Requires: ${parent ? parent.name : node.needs}`, tx + 8, ty + 46);
+      const tw = 180, th = needsMet || unlocked ? 60 : 72;
+      let tx = pos.x + 18, ty = pos.y - th / 2;
+      if (tx + tw > W - 10) tx = pos.x - tw - 18;
+      if (ty < 10) ty = 10;
+      if (ty + th > H - 10) ty = H - th - 10;
+
+      ctx.save();
+      ctx.shadowColor = sec.color;
+      ctx.shadowBlur = 12;
+      roundRectPath(ctx, tx, ty, tw, th, 7);
+      ctx.fillStyle = 'rgba(3,6,20,.96)';
+      ctx.fill();
+      ctx.strokeStyle = sec.color + '66';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = sec.color;
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(node.name, tx + 10, ty + 10);
+
+      ctx.fillStyle = '#8898cc';
+      ctx.font = '9px monospace';
+      ctx.fillText(node.desc, tx + 10, ty + 25);
+
+      if (unlocked) {
+        ctx.fillStyle = '#43a047';
+        ctx.fillText('✓ Unlocked', tx + 10, ty + 39);
+      } else {
+        ctx.fillStyle = needsMet ? (researchPoints >= node.cost ? '#f9a825' : '#e57373') : '#556';
+        ctx.fillText(`Cost: ${node.cost} RP  (have: ${researchPoints})`, tx + 10, ty + 39);
+        if (!needsMet) {
+          const parent = RESEARCH.find(r => r.id === node.needs);
+          ctx.fillStyle = '#445';
+          ctx.fillText(`Req: ${parent ? parent.name : node.needs}`, tx + 10, ty + 53);
+        }
       }
     }
   }
+
+  // RP + hint overlay (top-center)
+  ctx.fillStyle = 'rgba(0,0,0,.5)';
+  roundRectPath(ctx, cx - 110, 18, 220, 28, 6);
+  ctx.fill();
+  ctx.fillStyle = '#f0c040';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`✦ ${researchPoints} Research Points`, cx, 32);
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  ctx.font = '9px monospace';
+  ctx.fillText('click a star to research · click background to close', cx, 52);
 }
 
-function roundRectCtx(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
-}
-
-function getNodeAt(mx, my) {
-  if (!treeCanvas) return null;
-  const rect = treeCanvas.getBoundingClientRect();
-  const cx = treeCanvas.width / 2, cy = treeCanvas.height / 2;
-  const x = mx - rect.left, y = my - rect.top;
-  for (const node of RESEARCH) {
-    const pos = nodePos(node, cx, cy);
-    const r = (node.ring === 3 ? 13 : 10) + 4;
-    if (Math.hypot(x - pos.x, y - pos.y) <= r) return node;
-  }
-  return null;
-}
-
-function onTreeMouseMove(e) {
-  const node = getNodeAt(e.clientX, e.clientY);
-  hoveredNode = node ? node.id : null;
-  treeCanvas.style.cursor = node ? 'pointer' : 'default';
-}
-
-function onTreeClick(e) {
-  const node = getNodeAt(e.clientX, e.clientY);
-  if (!node) return;
+// ── Effects ───────────────────────────────────────────────────────────────────
+function tryUnlock(node) {
   if (researchUnlocked.has(node.id)) { showMsg(`${node.name} already unlocked`); return; }
   if (node.needs && !researchUnlocked.has(node.needs)) {
     const parent = RESEARCH.find(r => r.id === node.needs);
     showMsg(`Requires: ${parent ? parent.name : node.needs}`);
     return;
   }
-  if (researchPoints < node.cost) { showMsg(`Need ${node.cost} Research Points (have ${researchPoints})`); return; }
+  if (researchPoints < node.cost) { showMsg(`Need ${node.cost} RP (have ${researchPoints})`); return; }
   setResearchPoints(researchPoints - node.cost);
   researchUnlocked.add(node.id);
   applyResearchEffects();
@@ -392,7 +362,6 @@ function onTreeClick(e) {
   saveGame();
 }
 
-// ── Effects ───────────────────────────────────────────────────────────────────
 export function applyResearchEffects() {
   const base = 120;
   let mult = 1;
