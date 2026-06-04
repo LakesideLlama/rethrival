@@ -72,6 +72,23 @@ function easeInOut(t) {
 
 let rafId = null;
 
+// World tilt: ramp 0→1 over the first TILT_PHASE of open, reverse over last TILT_PHASE of close
+const TILT_PHASE = 0.45;
+const TILT_MAX = 38; // degrees
+
+function setWorldTilt(t) {
+  // t: 0 = flat, 1 = fully tilted back
+  const gameCanvas = document.getElementById('c');
+  if (!gameCanvas) return;
+  if (t <= 0) {
+    gameCanvas.style.transform = '';
+    gameCanvas.style.transformOrigin = '';
+  } else {
+    gameCanvas.style.transformOrigin = 'center 60%';
+    gameCanvas.style.transform = `perspective(900px) rotateX(${t * TILT_MAX}deg)`;
+  }
+}
+
 function animLoop() {
   if (!starCanvas) return;
   const now = Date.now();
@@ -81,7 +98,12 @@ function animLoop() {
 
   if (animState === 'opening') {
     const pitch = PITCH_START + (PITCH_END - PITCH_START) * e;
-    drawStars(pitch, e, e);
+    // World tilts up during first TILT_PHASE, then bg covers it
+    const tiltT = Math.min(raw / TILT_PHASE, 1);
+    setWorldTilt(easeInOut(tiltT));
+    // Background fades in after the tilt is well underway (start at 30%)
+    const bgAlpha = Math.max(0, Math.min((raw - 0.3) / (TILT_PHASE - 0.3), 1));
+    drawStars(pitch, e, bgAlpha);
     if (raw >= 1) {
       animState = 'open';
       showPanel();
@@ -90,8 +112,14 @@ function animLoop() {
     drawStars(PITCH_END, 1, 1);
   } else if (animState === 'closing') {
     const pitch = PITCH_END + (PITCH_START - PITCH_END) * e;
-    drawStars(pitch, 1 - e, 1 - e);
+    // Background fades out in the last TILT_PHASE, revealing the tilted world
+    const bgAlpha = Math.max(0, Math.min(1 - (raw - (1 - TILT_PHASE)) / TILT_PHASE, 1));
+    drawStars(pitch, 1 - e, bgAlpha);
+    // World un-tilts during last TILT_PHASE
+    const tiltT = Math.max(0, (1 - raw) / TILT_PHASE);
+    setWorldTilt(easeInOut(Math.min(tiltT, 1)));
     if (raw >= 1) {
+      setWorldTilt(0);
       animState = 'idle';
       const ui = document.getElementById('research-ui');
       if (ui) ui.style.display = 'none';
@@ -125,6 +153,7 @@ export function openResearch() {
     });
     initStars();
   }
+  setWorldTilt(0);
   setResearchOpen(true);
   animState = 'opening';
   animStart = Date.now();
