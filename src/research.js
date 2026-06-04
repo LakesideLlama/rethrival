@@ -81,26 +81,21 @@ function animLoop() {
 
   if (animState === 'opening') {
     const pitch = PITCH_START + (PITCH_END - PITCH_START) * e;
-    const starAlpha = Math.min(raw * 2.5, 1);
-    drawStars(pitch, starAlpha, e);
+    drawStars(pitch, e, e);
     if (raw >= 1) {
       animState = 'open';
       showPanel();
-      rafId = null;
-      return;
     }
   } else if (animState === 'open') {
     drawStars(PITCH_END, 1, 1);
-    rafId = null;
-    return;
   } else if (animState === 'closing') {
     const pitch = PITCH_END + (PITCH_START - PITCH_END) * e;
-    const starAlpha = 1 - e;
-    drawStars(pitch, starAlpha, 1 - e);
+    drawStars(pitch, 1 - e, 1 - e);
     if (raw >= 1) {
       animState = 'idle';
       const ui = document.getElementById('research-ui');
       if (ui) ui.style.display = 'none';
+      if (starCtx) starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
       rafId = null;
       return;
     }
