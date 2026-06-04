@@ -3,6 +3,7 @@ import {
   canvas, keys, player, landTiles, bridges, structures, cam, zoom, W, H,
   workbenchOpen, activeMode, buildMenuOpen, islandGrid, researchOpen,
   setLastMouse, setActiveMode, setMouseHeld, lastMX, lastMY,
+  perspectiveMode, setPerspectiveMode,
 } from './state.js';
 import { screenToWorld } from './utils.js';
 import { setZoom, toggleBuildMenu, closeBuildMenu, toggleSettings, toggleFPS, updateUI } from './ui.js';
@@ -29,6 +30,7 @@ window.addEventListener('keydown', e => {
     if (wb) openWorkbench(wb);
   }
   if (e.key.toLowerCase() === 'b' && !workbenchOpen && !researchOpen) toggleBuildMenu();
+  if (e.key.toLowerCase() === 'p' && !workbenchOpen && !researchOpen) setPerspectiveMode(!perspectiveMode);
   if (e.key === '-' || e.key === '_') setZoom(zoom - ZOOM_STEP);
   if (e.key === '=' || e.key === '+') setZoom(zoom + ZOOM_STEP);
 });
@@ -85,6 +87,7 @@ window.saveGameManual = saveGameManual;
 window.loadGame = loadGame;
 window.confirmReset = confirmReset;
 window.closeWorkbench = closeWorkbench;
+window.togglePerspective = () => setPerspectiveMode(!perspectiveMode);
 
 export function updatePlayerMovement(dt) {
   if (workbenchOpen || researchOpen) return;
