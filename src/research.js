@@ -5,28 +5,48 @@ import { gainXP, updateUI } from './ui.js';
 import { saveGame } from './save.js';
 
 // ── Star field ────────────────────────────────────────────────────────────────
-const STAR_COUNT = 320;
+const STAR_COUNT = 600;
 let stars = [];
 let starCanvas, starCtx;
 
 function initStars() {
   stars = [];
+  // Distribute uniformly on a sphere so the full sky is covered at any pitch
   for (let i = 0; i < STAR_COUNT; i++) {
+    const theta = Math.random() * Math.PI * 2;       // azimuth
+    const cosφ = Math.random() * 2 - 1;              // uniform on sphere
+    const sinφ = Math.sqrt(1 - cosφ * cosφ);
+    const r = Math.random() * 1200 + 500;
     stars.push({
-      x: (Math.random() - 0.5) * 3000,
-      y: (Math.random() - 0.5) * 3000,
-      z: Math.random() * 1800 + 200,
-      r: Math.random() * 1.4 + 0.3,
+      x: sinφ * Math.cos(theta) * r,
+      y: sinφ * Math.sin(theta) * r,
+      z: cosφ * r,
+      r: Math.random() * 1.5 + 0.3,
       twinkle: Math.random() * Math.PI * 2,
     });
   }
+}
+
+function drawStar(ctx, sx, sy, radius, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  if (radius > 1.0) {
+    ctx.globalAlpha = alpha * 0.22;
+    ctx.beginPath();
+    ctx.arc(sx, sy, radius * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawStars(pitch, alpha, bgAlpha) {
   if (!starCtx) return;
   const W = starCanvas.width, H = starCanvas.height;
   const cx = W / 2, cy = H / 2;
-  const FOV = 600;
+  const FOV = 700;
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
   starCtx.clearRect(0, 0, W, H);
   starCtx.globalAlpha = bgAlpha;
@@ -40,22 +60,10 @@ function drawStars(pitch, alpha, bgAlpha) {
     if (rz <= 0) continue;
     const sx = s.x / rz * FOV + cx;
     const sy = -ry / rz * FOV + cy;
-    if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
     const brightness = 0.55 + 0.45 * Math.sin(t * 1.8 + s.twinkle);
-    const a = brightness * alpha;
-    starCtx.globalAlpha = a;
-    starCtx.fillStyle = '#fff';
-    starCtx.beginPath();
-    starCtx.arc(sx, sy, s.r, 0, Math.PI * 2);
-    starCtx.fill();
-    if (s.r > 1.0) {
-      starCtx.globalAlpha = a * 0.28;
-      starCtx.beginPath();
-      starCtx.arc(sx, sy, s.r * 3.5, 0, Math.PI * 2);
-      starCtx.fill();
-    }
+    drawStar(starCtx, sx, sy, s.r, brightness * alpha);
   }
-  starCtx.globalAlpha = 1;
 }
 
 // ── Animation ─────────────────────────────────────────────────────────────────
@@ -173,23 +181,12 @@ function nodeAt(mx, my) {
   const cx = starCanvas.width / 2, cy = starCanvas.height / 2;
   for (const node of RESEARCH) {
     const pos = nodePos(node, cx, cy);
-    const r = (node.ring === 3 ? 14 : 11) + 6;
+    const r = (node.ring === 3 ? 5.5 : node.ring === 2 ? 4 : 3) * 5 + 8;
     if (Math.hypot(mx - pos.x, my - pos.y) <= r) return node;
   }
   return null;
 }
 
-function starPath(ctx, cx, cy, r) {
-  const points = 5, step = Math.PI / points;
-  ctx.beginPath();
-  for (let i = 0; i < points * 2; i++) {
-    const rad = i % 2 === 0 ? r : r * 0.42;
-    const a = i * step - Math.PI / 2;
-    i === 0 ? ctx.moveTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad)
-            : ctx.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
-  }
-  ctx.closePath();
-}
 
 function roundRectPath(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -247,37 +244,43 @@ function drawTree(ctx, W, H) {
     ctx.globalAlpha = 1;
   }
 
-  // Nodes
+  // Nodes — same circle+halo style as background stars, just larger and colored
   for (const node of RESEARCH) {
     const pos = nodePos(node, cx, cy);
     const sec = SECTIONS[node.section];
     const unlocked = researchUnlocked.has(node.id);
     const needsMet = !node.needs || researchUnlocked.has(node.needs);
     const hovered = hoveredNode === node.id;
-    const r = node.ring === 3 ? 13 : 10;
-    const twinkleAmt = unlocked ? (0.8 + 0.2 * Math.sin(t * 2.2 + node.ring)) : 1;
+    // Core radius: ring 3 biggest, ring 1 smallest
+    const baseR = node.ring === 3 ? 5.5 : node.ring === 2 ? 4 : 3;
+    const twinkle = unlocked ? (0.82 + 0.18 * Math.sin(t * 2.1 + node.ring * 1.3)) : 1;
+    const r = baseR * twinkle;
 
-    ctx.save();
-    if (unlocked || hovered) {
-      ctx.shadowColor = sec.glow;
-      ctx.shadowBlur = unlocked ? 18 : 10;
-    }
-    starPath(ctx, pos.x, pos.y, r * twinkleAmt);
     if (unlocked) {
+      // Bright colored core + large colored halo
+      ctx.globalAlpha = twinkle;
       ctx.fillStyle = sec.color;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = twinkle * 0.3;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = twinkle * 0.1;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 11, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
     } else if (needsMet && researchPoints >= node.cost) {
-      ctx.fillStyle = sec.color + '66';
-      ctx.strokeStyle = sec.color + 'bb';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      // Dim colored core + faint halo — available to buy
+      ctx.globalAlpha = hovered ? 0.9 : 0.45;
+      ctx.fillStyle = sec.color;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = (hovered ? 0.22 : 0.1);
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
     } else {
-      ctx.fillStyle = 'rgba(80,90,130,.5)';
-      ctx.strokeStyle = 'rgba(255,255,255,.1)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      // Grey-blue dim dot — locked
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#8898cc';
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 0.8, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
     }
-    ctx.fill();
-    ctx.restore();
   }
 
   // Tooltip for hovered node
