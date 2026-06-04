@@ -222,7 +222,7 @@ const SECTIONS = {
   blue:   { angle: Math.PI / 2,  label: 'Crafting',    color: '#1e88e5', glow: '#1e88e5' },
   yellow: { angle: Math.PI,      label: 'Exploration', color: '#f9a825', glow: '#f9a825' },
 };
-const RING_R   = [0, 90, 160, 230];
+const RING_R   = [0, 60, 110, 160];
 const RING_SPREAD = [0, 0.36, 0.28, 0];
 
 function nodePos(node, cx, cy) {
@@ -266,31 +266,7 @@ function drawTree(ctx, W, H) {
   ctx.scale(viewZoom, viewZoom);
   ctx.translate(-cx, -cy);
 
-  // ── Branch highlight for hovered section ──────────────────────────────────
   const hovNode = hoveredNode ? RESEARCH.find(r => r.id === hoveredNode) : null;
-  if (hovNode) {
-    const sec = SECTIONS[hovNode.section];
-    ctx.save();
-    ctx.shadowColor = sec.color;
-    ctx.shadowBlur = 22;
-    ctx.strokeStyle = sec.color + '55';
-    ctx.lineWidth = 3;
-    for (const node of RESEARCH) {
-      if (node.section !== hovNode.section) continue;
-      const pos = nodePos(node, cx, cy);
-      let parentPos = node.ring === 1 ? { x: cx, y: cy } : null;
-      if (node.ring > 1 && node.needs) {
-        const p = RESEARCH.find(r => r.id === node.needs);
-        if (p) parentPos = nodePos(p, cx, cy);
-      }
-      if (!parentPos) continue;
-      ctx.beginPath();
-      ctx.moveTo(parentPos.x, parentPos.y);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
 
   // ── Connection lines ──────────────────────────────────────────────────────
   for (const node of RESEARCH) {
@@ -322,13 +298,12 @@ function drawTree(ctx, W, H) {
   ctx.fill();
   ctx.restore();
 
-  // ── Section labels ────────────────────────────────────────────────────────
-  for (const [sKey, sec] of Object.entries(SECTIONS)) {
-    const lr = RING_R[3] + 30;
-    const isHovSec = hovNode?.section === sKey;
+  // ── Section labels (between hub and ring 1) ───────────────────────────────
+  for (const [, sec] of Object.entries(SECTIONS)) {
+    const lr = RING_R[1] * 0.5;
     ctx.fillStyle = sec.color;
-    ctx.globalAlpha = isHovSec ? 1 : 0.5;
-    ctx.font = `${isHovSec ? 'bold' : ''} 10px monospace`;
+    ctx.globalAlpha = 0.6;
+    ctx.font = 'bold 9px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(sec.label.toUpperCase(), cx + Math.cos(sec.angle) * lr, cy + Math.sin(sec.angle) * lr);
@@ -346,6 +321,11 @@ function drawTree(ctx, W, H) {
     const twinkle = unlocked ? (0.82 + 0.18 * Math.sin(t * 2.1 + node.ring * 1.3)) : 1;
     const r = baseR * twinkle;
 
+    ctx.save();
+    if (hovered) {
+      ctx.shadowColor = sec.color;
+      ctx.shadowBlur = 28;
+    }
     if (unlocked) {
       ctx.globalAlpha = twinkle;
       ctx.fillStyle = sec.color;
@@ -356,18 +336,19 @@ function drawTree(ctx, W, H) {
       ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 11, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     } else if (needsMet && researchPoints >= node.cost) {
-      ctx.globalAlpha = hovered ? 0.9 : 0.45;
+      ctx.globalAlpha = hovered ? 0.95 : 0.45;
       ctx.fillStyle = sec.color;
       ctx.beginPath(); ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = hovered ? 0.22 : 0.1;
+      ctx.globalAlpha = hovered ? 0.28 : 0.1;
       ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 4.5, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     } else {
-      ctx.globalAlpha = 0.25;
+      ctx.globalAlpha = hovered ? 0.5 : 0.25;
       ctx.fillStyle = '#8898cc';
       ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 0.8, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
   }
 
   ctx.restore(); // end pan/zoom transform
