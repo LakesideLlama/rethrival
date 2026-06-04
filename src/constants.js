@@ -7,7 +7,8 @@ export const ZOOM_MAX = 1;
 export const ZOOM_STEP = 0.1;
 
 export const SWING_DUR = 420;
-export const SWING_ARC = Math.PI * 1.2; // ~216 degrees — wide sweep in front
+export const SWING_REST  =  0.65; // sword rests right-of-facing (radians)
+export const SWING_IMPACT = -0.45; // sword impacts left-of-facing (radians)
 export const ATTACK_INTERVAL = 350; // ms between auto-attacks when holding click
 
 export const DROP_PICKUP_RANGE = TS * 0.25;

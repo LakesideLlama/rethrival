@@ -1,4 +1,4 @@
-import { TS, SWING_ARC, BUILDABLES, RES_LOOT, RES_XP } from './constants.js';
+import { TS, SWING_REST, SWING_IMPACT, BUILDABLES, RES_LOOT, RES_XP } from './constants.js';
 import { player, inv, landTiles, bridges, structures, drops, nextDropId, activeMode, setActiveMode } from './state.js';
 import { showMsg, costStr, canAfford, spendCost, rnd } from './utils.js';
 import { gainXP, updateUI } from './ui.js';
@@ -17,7 +17,6 @@ const RES_COL_R = {
 };
 
 export function swingAttack() {
-  player.swingSide = -player.swingSide; // alternate left↔right each swing
   const swingDir = player.dir;
   player.swingT = Date.now();
   player.swingDir = swingDir;
@@ -30,11 +29,13 @@ export function swingAttack() {
     const r = RES_COL_R[t.res] || 12;
     // Radial: blade must overlap the sprite circle
     if (d > BLADE_MAX + r || d < Math.max(0, BLADE_MIN - r)) continue;
-    // Angular: sprite's half-width at distance d widens the valid arc
+    // Angular: resource must fall within the visual sweep arc [SWING_IMPACT, SWING_REST]
+    // widened by the sprite's angular half-width at distance d
     let diff = Math.atan2(ty - player.y, tx - player.x) - swingDir;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    if (Math.abs(diff) > SWING_ARC / 2 + Math.atan2(r, Math.max(d, 1))) continue;
+    const slack = Math.atan2(r, Math.max(d, 1));
+    if (diff < SWING_IMPACT - slack || diff > SWING_REST + slack) continue;
 
     t.resHp--;
     t.hitT = Date.now();

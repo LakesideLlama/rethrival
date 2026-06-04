@@ -1,4 +1,4 @@
-import { TS, ISLAND_GRID, BC, SWING_DUR, SWING_ARC, RECIPES } from './constants.js';
+import { TS, ISLAND_GRID, BC, SWING_DUR, SWING_REST, SWING_IMPACT, RECIPES } from './constants.js';
 import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers } from './state.js';
 import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
@@ -93,7 +93,6 @@ export function drawPlayer() {
   const now = Date.now();
   const swingAge = now - player.swingT;
   const swinging = swingAge < SWING_DUR;
-  const side = player.swingSide;
   // Two-phase: fast strike (0–30%) then slow pull-back (30–100%)
   const t = swingAge / SWING_DUR;
   const IMPACT_AT = 0.30;
@@ -105,13 +104,15 @@ export function drawPlayer() {
     const p = (t - IMPACT_AT) / (1 - IMPACT_AT);
     animT = 1 - p * p;       // ease-out slow return
   }
-  const restAngle  = player.dir + side * (SWING_ARC / 2 - 0.15);
-  const impactAngle = player.dir - side * 0.25;
+  const restAngle   = player.swingDir + SWING_REST;
+  const impactAngle = player.swingDir + SWING_IMPACT;
+  const idleAngle   = player.dir + SWING_REST;
   const swordAng = swinging
     ? restAngle + (impactAngle - restAngle) * animT
-    : restAngle;
+    : idleAngle;
   const px = player.x, py = player.y;
-  ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(8, 0);
+  // Sword floats slightly away from the player body for a cartoon feel
+  ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(14, 0);
   ctx.strokeStyle = '#cfd8dc'; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1;
