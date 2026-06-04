@@ -66,3 +66,5 @@ export let researchOpen = false;
 export function setResearchOpen(v) { researchOpen = v; }
 export let researchPoints = 0;
 export function setResearchPoints(v) { researchPoints = v; }
+export let perspectiveMode = false;
+export function setPerspectiveMode(v) { perspectiveMode = v; }

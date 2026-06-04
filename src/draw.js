@@ -1,5 +1,5 @@
 import { TS, ISLAND_GRID, BC, SWING_DUR, SWING_REST, SWING_IMPACT, RECIPES } from './constants.js';
-import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers } from './state.js';
+import { ctx, cam, zoom, W, H, player, landTiles, bridges, structures, islandGrid, workbenchOpen, lastMX, lastMY, activeMode, craftTimers, perspectiveMode } from './state.js';
 import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
 import { getNearbyWorkbench } from './workbench.js';
@@ -145,10 +145,22 @@ export function drawActiveModeHint() {
   ctx.restore();
 }
 
+// Depth of the south-face wall strip in world pixels (AC perspective only)
+const AC_FACE_H = 14;
+// Vertical squish factor for AC perspective
+const AC_SCALE_Y = 0.62;
+
 export function drawScene() {
   const now = Date.now();
   ctx.fillStyle = '#0d2344'; ctx.fillRect(0, 0, W, H);
   ctx.save();
+
+  if (perspectiveMode) {
+    // Shift the horizon up so the world doesn't drift off-screen when squished
+    ctx.translate(0, H * (1 - AC_SCALE_Y) * 0.5);
+    ctx.scale(1, AC_SCALE_Y);
+  }
+
   ctx.scale(zoom, zoom);
   ctx.translate(-cam.x, -cam.y);
 
@@ -162,10 +174,19 @@ export function drawScene() {
   // land tiles
   for (const t of Object.values(landTiles)) {
     const px = t.wx * TS, py = t.wy * TS;
-    if (px > cam.x + W / zoom + TS || py > cam.y + H / zoom + TS || px + TS < cam.x || py + TS < cam.y) continue;
+    if (px > cam.x + W / zoom + TS || py > cam.y + H / zoom + TS + AC_FACE_H || px + TS < cam.x || py + TS < cam.y) continue;
     const bc = BC[t.biome] || BC.plains;
     ctx.fillStyle = t.alt ? bc.alt : bc.base; ctx.fillRect(px, py, TS, TS);
     ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = .5; ctx.strokeRect(px, py, TS, TS);
+    if (perspectiveMode) {
+      // South-face depth strip — darker shade of the tile colour
+      ctx.fillStyle = t.alt ? (bc.alt_dark || bc.alt) : (bc.base_dark || bc.base);
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(px, py + TS, TS, AC_FACE_H);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = .5;
+      ctx.strokeRect(px, py + TS, TS, AC_FACE_H);
+    }
     if (t.res) {
       let ox = 0;
       if (t.hitT) {
@@ -188,6 +209,12 @@ export function drawScene() {
     ctx.fillStyle = '#8d6e3a'; ctx.fillRect(px, py, TS, TS);
     ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1; ctx.strokeRect(px + 4, py + 4, TS - 8, TS - 8);
     ctx.fillStyle = '#a1887f'; ctx.fillRect(px + 4, py + TS / 2 - 3, TS - 8, 6);
+    if (perspectiveMode) {
+      ctx.fillStyle = '#5d4037';
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(px, py + TS, TS, AC_FACE_H);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // structures
@@ -223,5 +250,12 @@ export function drawScene() {
   if (!workbenchOpen) {
     const wb = getNearbyWorkbench();
     if (wb) drawEKey(wb.wx, wb.wy);
+  }
+
+  // Keep HUD perspective indicator in sync
+  const perspBox = document.getElementById('persp-box');
+  if (perspBox) {
+    perspBox.textContent = perspectiveMode ? '3D' : '2D';
+    perspBox.style.color = perspectiveMode ? '#ffd580' : '#aad4ff';
   }
 }
