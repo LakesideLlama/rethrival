@@ -1,19 +1,21 @@
 import { ZOOM_STEP, CELL, ISLAND_GRID } from './constants.js';
 import {
   canvas, keys, player, landTiles, bridges, structures, cam, zoom, W, H,
-  workbenchOpen, activeMode, buildMenuOpen, islandGrid,
+  workbenchOpen, activeMode, buildMenuOpen, islandGrid, researchOpen,
   setLastMouse, setActiveMode, setMouseHeld, lastMX, lastMY,
 } from './state.js';
 import { screenToWorld } from './utils.js';
 import { setZoom, toggleBuildMenu, closeBuildMenu, toggleSettings, toggleFPS, updateUI } from './ui.js';
 import { openWorkbench, closeWorkbench, getNearbyWorkbench } from './workbench.js';
 import { tryBridge, tryPlaceStructure, tryBuyIsland } from './actions.js';
+import { openResearch, closeResearch } from './research.js';
 import { adjOwned } from './world.js';
 import { saveGameManual, loadGame, confirmReset } from './save.js';
 
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   if (e.key === 'Escape') {
+    if (researchOpen) { closeResearch(); return; }
     if (workbenchOpen) { closeWorkbench(); return; }
     setActiveMode(null);
     closeBuildMenu();
@@ -21,11 +23,12 @@ window.addEventListener('keydown', e => {
     updateUI();
     return;
   }
-  if (e.key.toLowerCase() === 'e' && !workbenchOpen) {
+  if (e.key.toLowerCase() === 'r' && !workbenchOpen) { researchOpen ? closeResearch() : openResearch(); return; }
+  if (e.key.toLowerCase() === 'e' && !workbenchOpen && !researchOpen) {
     const wb = getNearbyWorkbench();
     if (wb) openWorkbench(wb);
   }
-  if (e.key.toLowerCase() === 'b' && !workbenchOpen) toggleBuildMenu();
+  if (e.key.toLowerCase() === 'b' && !workbenchOpen && !researchOpen) toggleBuildMenu();
   if (e.key === '-' || e.key === '_') setZoom(zoom - ZOOM_STEP);
   if (e.key === '=' || e.key === '+') setZoom(zoom + ZOOM_STEP);
 });
@@ -74,6 +77,8 @@ canvas.addEventListener('click', e => {
 
 // Expose globals needed by inline HTML onclick handlers
 window.toggleBuildMenu = toggleBuildMenu;
+window.openResearch = openResearch;
+window.closeResearch = closeResearch;
 window.toggleSettings = toggleSettings;
 window.toggleFPS = toggleFPS;
 window.saveGameManual = saveGameManual;
@@ -82,7 +87,7 @@ window.confirmReset = confirmReset;
 window.closeWorkbench = closeWorkbench;
 
 export function updatePlayerMovement(dt) {
-  if (workbenchOpen) return;
+  if (workbenchOpen || researchOpen) return;
   // Always face cursor
   if (lastMX !== undefined) {
     const wx = cam.x + lastMX / zoom, wy = cam.y + lastMY / zoom;

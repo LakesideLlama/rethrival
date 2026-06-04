@@ -62,6 +62,17 @@ export const RECIPES = [
   { id:'herb_potion', name:'Herb Potion', inputs:{herb:3,food:1}, outputs:{potion:1},      xp:12, dur:5000 },
 ];
 
+export const RESEARCH = [
+  { id: 'respawn_1',   name: 'Quick Growth',     desc: 'Resources respawn 40% faster',       cost: { wood: 20, stone: 10 },        xpReq: 0   },
+  { id: 'respawn_2',   name: 'Rapid Regrowth',   desc: 'Resources respawn 60% faster total', cost: { plank: 8, food: 10 },         xpReq: 100, needs: 'respawn_1' },
+  { id: 'speed_1',     name: 'Light Feet',       desc: 'Move 25% faster',                    cost: { food: 15, herb: 5 },          xpReq: 50  },
+  { id: 'speed_2',     name: 'Swift Stride',     desc: 'Move 50% faster total',              cost: { herb: 12, food: 20 },         xpReq: 200, needs: 'speed_1' },
+  { id: 'harvest_1',  name: 'Sharp Edge',        desc: 'Resources yield +1 item',            cost: { stone: 20, iron: 4 },         xpReq: 150 },
+  { id: 'harvest_2',  name: 'Bounty Harvest',    desc: 'Resources yield +2 items total',     cost: { iron: 10, ore: 6 },           xpReq: 400, needs: 'harvest_1' },
+  { id: 'xp_1',       name: 'Scholar',           desc: 'Gain 25% more XP',                   cost: { herb: 8, reed: 10 },          xpReq: 75  },
+  { id: 'craft_1',    name: 'Efficient Crafter', desc: 'Crafting 30% faster',                cost: { plank: 12, stone_block: 6 },  xpReq: 250 },
+];
+
 export const BUILDABLES = [
   { id:'bridge',    name:'Bridge',    desc:'Cross water gaps',          cost:{wood:3,stone:2},  lvl:1, mode:'bridge' },
   { id:'workbench', name:'Workbench', desc:'Craft planks, rope & more', cost:{wood:8,stone:4},  lvl:1, mode:'place' },

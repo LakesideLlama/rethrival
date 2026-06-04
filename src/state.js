@@ -61,3 +61,6 @@ export let mouseHeld = false, heldWx = 0, heldWy = 0;
 export function setMouseHeld(held, wx, wy) { mouseHeld = held; if (wx !== undefined) { heldWx = wx; heldWy = wy; } }
 export const discovered = new Set(['gold']);
 export function discover(item) { discovered.add(item); }
+export const researchUnlocked = new Set();
+export let researchOpen = false;
+export function setResearchOpen(v) { researchOpen = v; }
