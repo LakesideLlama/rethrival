@@ -1,7 +1,7 @@
 import './style.css';
 import './input.js';
 import { ATTACK_INTERVAL, SWING_DUR } from './constants.js';
-import { ctx, W, H, zoom, showFPS, fps, fpsTimer, fpsCount, lastT, setLastT, setFps, setFpsTimer, setFpsCount, workbenchOpen, mouseHeld, player } from './state.js';
+import { ctx, W, H, zoom, showFPS, fps, fpsTimer, fpsCount, lastT, setLastT, setFps, setFpsTimer, setFpsCount, workbenchOpen, researchOpen, mouseHeld, player } from './state.js';
 import { initWorld, respawnCheck, autoStep } from './world.js';
 import { loadGame, confirmReset } from './save.js';
 import { updateUI } from './ui.js';
@@ -10,6 +10,7 @@ import { drawScene } from './draw.js';
 import { updatePlayerMovement } from './input.js';
 import { swingAttack } from './actions.js';
 import { initCraftTick } from './workbench.js';
+import { applyResearchEffects } from './research.js';
 
 document.getElementById('s-speed')?.addEventListener('change', function () {
   player.spd = +this.value;
@@ -32,7 +33,7 @@ function gameLoop(ts) {
   }
 
   // Hold-to-attack: wait for both the interval AND the current swing to finish
-  if (mouseHeld && !workbenchOpen) {
+  if (mouseHeld && !workbenchOpen && !researchOpen) {
     _attackTimer += dt;
     if (_attackTimer >= ATTACK_INTERVAL && Date.now() - player.swingT >= SWING_DUR) {
       _attackTimer = 0;
@@ -67,5 +68,6 @@ function gameLoop(ts) {
 
 initWorld();
 if (!loadGame(false)) updateUI();
+applyResearchEffects();
 initCraftTick();
 requestAnimationFrame(ts => { setLastT(ts); requestAnimationFrame(gameLoop); });

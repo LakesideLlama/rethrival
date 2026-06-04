@@ -5,6 +5,7 @@
 </head><body>
 
 <canvas id="c"></canvas>
+<canvas id="star-c"></canvas>
 
 <div id="hud">
   <div class="hud-box" id="lvl-box">Lv 1</div>
@@ -20,6 +21,7 @@
 
 <div id="toolbar">
   <button class="tool-btn" id="btn-build" onclick="toggleBuildMenu()">Build</button>
+  <button class="tool-btn" id="btn-research" onclick="openResearch()">Research</button>
 </div>
 
 <div id="build-menu">
@@ -49,6 +51,17 @@
       <button id="wb-close" onclick="closeWorkbench()">✕</button>
     </div>
     <div id="wb-recipes"></div>
+  </div>
+</div>
+
+<div id="research-ui">
+  <div id="research-overlay" onclick="closeResearch()"></div>
+  <div id="research-panel">
+    <div id="res-header">
+      <h2>✦ Research</h2>
+      <button id="res-close" onclick="closeResearch()">✕</button>
+    </div>
+    <div id="research-items"></div>
   </div>
 </div>
 
