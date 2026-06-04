@@ -8,11 +8,11 @@ import { saveGame } from './save.js';
 export function updateDrops(dt) {
   const now = Date.now();
   const friction = Math.pow(0.012, dt / 1000);
-  const collected = [];
-  for (let i = drops.length - 1; i >= 0; i--) {
-    const d = drops[i];
-    if (d.collected) { collected.push(i); continue; }
-    if (now - d.born > DROP_EXPIRE) { drops.splice(i, 1); continue; }
+  let anyCollected = false;
+  for (const d of drops) {
+    if (!d.active) continue;
+    if (d.collected) { d.active = false; continue; }
+    if (now - d.born > DROP_EXPIRE) { d.active = false; continue; }
     const age = (now - d.born) / 1000;
     d.vx *= friction; d.vy *= friction;
     const dist = Math.hypot(player.x - d.x, player.y - d.y);
@@ -33,18 +33,17 @@ export function updateDrops(dt) {
       if (onY) { d.y = ny; d.vy *= 0.4; } else { d.vy *= -0.4; }
     }
     if (dist < DROP_PICKUP_RANGE && age > 0.15) {
-      d.collected = true; inv[d.item] = (inv[d.item] || 0) + d.qty; discover(d.item);
+      d.collected = true; d.active = false; inv[d.item] = (inv[d.item] || 0) + d.qty; discover(d.item);
+      anyCollected = true;
     }
   }
-  if (collected.length) {
-    for (let i = collected.length - 1; i >= 0; i--) drops.splice(collected[i], 1);
-    updateUI(); saveGame();
-  }
+  if (anyCollected) { updateUI(); saveGame(); }
 }
 
 export function drawDrops() {
   const now = Date.now();
   for (const d of drops) {
+    if (!d.active) continue;
     const age = (now - d.born) / 1000;
     const life = (now - d.born) / DROP_EXPIRE;
     const alpha = life > 0.88 ? 1 - (life - 0.88) / 0.12 : 1;

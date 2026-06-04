@@ -1,6 +1,7 @@
 import { TS, ISLAND_GRID, CELL, BIOMES, BIOME_RES, RES_HP } from './constants.js';
 import { islandGrid, landTiles, player, structures, inv } from './state.js';
 import { rnd } from './utils.js';
+import { invalidateChunk } from './chunkCache.js';
 
 export function getBiome(ix, iy) {
   for (const [n, b] of Object.entries(BIOMES)) {
@@ -40,6 +41,7 @@ export function buildTiles(isl) {
     if (Math.random() < 0.28) { res = rt[Math.floor(Math.random() * rt.length)]; resHp = RES_HP[res]; }
     const t = { wx, wy, biome: isl.biome, alt: Math.random() < 0.3, res, resHp, resMax: resHp, resTimer: 0, _lastRes: res, respawnRate };
     isl.tiles.push(t); landTiles[key] = t;
+    invalidateChunk(wx, wy);
   });
 }
 
@@ -82,6 +84,7 @@ export function respawnCheck() {
       const rt = BIOME_RES[t.biome] || BIOME_RES.plains;
       t.res = rt[Math.floor(Math.random() * rt.length)];
       t.resHp = RES_HP[t.res]; t.resMax = t.resHp; t.resTimer = 0;
+      invalidateChunk(t.wx, t.wy);
     }
   }
 }

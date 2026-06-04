@@ -4,6 +4,7 @@ import { showMsg, costStr, canAfford, spendCost, rnd } from './utils.js';
 import { gainXP, updateUI } from './ui.js';
 import { saveGame } from './save.js';
 import { buildTiles } from './world.js';
+import { invalidateChunk } from './chunkCache.js';
 
 // Sword blade occupies world pixels 8–28 from player center (ctx.translate(8,0) + lineTo(20,0))
 const BLADE_MIN = 8, BLADE_MAX = 28;
@@ -45,8 +46,17 @@ export function swingAttack() {
       Object.entries(loot).forEach(([item, qty]) => {
         const angle = Math.random() * Math.PI * 2;
         const spd = rnd(20, 55);
-        drops.push({ id: nextDropId(), x: tx, y: ty, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, item, qty, born: Date.now(), collected: false });
+        const drop = drops.find(d => !d.active);
+        if (drop) {
+          drop.active = true;
+          drop.id = nextDropId();
+          drop.x = tx; drop.y = ty;
+          drop.vx = Math.cos(angle) * spd; drop.vy = Math.sin(angle) * spd;
+          drop.item = item; drop.qty = qty;
+          drop.born = Date.now(); drop.collected = false;
+        }
       });
+      invalidateChunk(t.wx, t.wy);
       t.resTimer = Date.now(); t._lastRes = t.res; t.res = null;
       anyDied = true;
     }
@@ -64,6 +74,7 @@ export function tryBridge(twx, twy) {
   const b = BUILDABLES.find(x => x.id === 'bridge');
   if (!canAfford(b.cost)) { showMsg(`Need: ${costStr(b.cost)}`); setActiveMode(null); updateUI(); return; }
   spendCost(b.cost); bridges.add(key);
+  invalidateChunk(twx, twy);
   showMsg('Bridge placed'); updateUI(); saveGame();
 }
 

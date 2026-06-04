@@ -7,6 +7,7 @@ import {
 import { buildTiles } from './world.js';
 import { updateUI } from './ui.js';
 import { showMsg } from './utils.js';
+import { invalidateAllChunks } from './chunkCache.js';
 
 export function saveGame() {
   const islandData = [];
@@ -66,6 +67,7 @@ export function loadGame(manual) {
       });
     }
   }
+  invalidateAllChunks();
   // Restore discovered items; fall back to scanning inv if save pre-dates this feature
   discovered.clear();
   if (d.discovered) { d.discovered.forEach(i => discovered.add(i)); }

@@ -4,8 +4,87 @@ import { roundRect, screenToWorld } from './utils.js';
 import { adjOwned } from './world.js';
 import { getNearbyWorkbench } from './workbench.js';
 import { drawDrops } from './drops.js';
+import { registerChunkMaps, invalidateChunk, invalidateAllChunks } from './chunkCache.js';
 
-export function drawRes(res, cx, cy, hp, maxHp, biome) {
+// --- Chunk cache ---
+const CHUNK_TILES = 8;
+const CHUNK_PX = CHUNK_TILES * TS; // 384px
+
+const chunkCache = new Map();
+const dirtyChunks = new Set();
+
+// Register the maps so chunkCache.js helpers can mutate them
+registerChunkMaps(chunkCache, dirtyChunks);
+
+export { invalidateChunk, invalidateAllChunks };
+
+// Depth of the south-face wall strip in world pixels (AC perspective only)
+const AC_FACE_H = 14;
+// Vertical squish factor for AC perspective
+const AC_SCALE_Y = 0.62;
+
+function renderChunk(cxIdx, cyIdx) {
+  const key = `${cxIdx},${cyIdx}`;
+  let osc = chunkCache.get(key);
+  if (!osc) {
+    osc = new OffscreenCanvas(CHUNK_PX, CHUNK_PX + AC_FACE_H);
+    chunkCache.set(key, osc);
+  }
+  const octx = osc.getContext('2d');
+  octx.clearRect(0, 0, osc.width, osc.height);
+
+  // The chunk's world-pixel origin
+  const originWX = cxIdx * CHUNK_TILES;
+  const originWY = cyIdx * CHUNK_TILES;
+
+  // Draw tiles in this chunk
+  for (let dy = 0; dy < CHUNK_TILES; dy++) {
+    for (let dx = 0; dx < CHUNK_TILES; dx++) {
+      const wx = originWX + dx, wy = originWY + dy;
+      const t = landTiles[`${wx},${wy}`];
+      if (!t) continue;
+      const px = dx * TS, py = dy * TS;
+      const bc = BC[t.biome] || BC.plains;
+      octx.fillStyle = t.alt ? bc.alt : bc.base;
+      octx.fillRect(px, py, TS, TS);
+      octx.strokeStyle = 'rgba(0,0,0,.12)'; octx.lineWidth = 0.5;
+      octx.strokeRect(px, py, TS, TS);
+      if (perspectiveMode) {
+        octx.fillStyle = t.alt ? (bc.alt_dark || bc.alt) : (bc.base_dark || bc.base);
+        octx.globalAlpha = 0.55;
+        octx.fillRect(px, py + TS, TS, AC_FACE_H);
+        octx.globalAlpha = 1;
+        octx.strokeStyle = 'rgba(0,0,0,.25)'; octx.lineWidth = 0.5;
+        octx.strokeRect(px, py + TS, TS, AC_FACE_H);
+      }
+      // Draw static resources (skip tiles with active hitT — those are overlaid on main canvas)
+      if (t.res && !t.hitT) {
+        drawRes(octx, t.res, px + TS / 2, py + TS / 2, t.resHp, t.resMax || 1, t.biome);
+      }
+    }
+  }
+
+  // Draw bridges in this chunk
+  for (const bk of bridges) {
+    const [bwx, bwy] = bk.split(',').map(Number);
+    const dx = bwx - originWX, dy = bwy - originWY;
+    if (dx < 0 || dx >= CHUNK_TILES || dy < 0 || dy >= CHUNK_TILES) continue;
+    const px = dx * TS, py = dy * TS;
+    octx.fillStyle = '#8d6e3a'; octx.fillRect(px, py, TS, TS);
+    octx.strokeStyle = '#5d4037'; octx.lineWidth = 1; octx.strokeRect(px + 4, py + 4, TS - 8, TS - 8);
+    octx.fillStyle = '#a1887f'; octx.fillRect(px + 4, py + TS / 2 - 3, TS - 8, 6);
+    if (perspectiveMode) {
+      octx.fillStyle = '#5d4037';
+      octx.globalAlpha = 0.6;
+      octx.fillRect(px, py + TS, TS, AC_FACE_H);
+      octx.globalAlpha = 1;
+    }
+  }
+
+  dirtyChunks.delete(key);
+}
+
+export function drawRes(ctx, res, cx, cy, hp, maxHp, biome) {
   const s = TS * 0.32, bc = BC[biome] || BC.plains;
   ctx.save(); ctx.translate(cx, cy);
   ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 1.5;
@@ -38,7 +117,7 @@ export function drawRes(res, cx, cy, hp, maxHp, biome) {
   ctx.restore();
 }
 
-export function drawStruct(type, cx, cy) {
+export function drawStruct(ctx, type, cx, cy) {
   const s = TS * .35;
   ctx.save(); ctx.translate(cx, cy);
   if (type === 'workbench') {
@@ -145,11 +224,6 @@ export function drawActiveModeHint() {
   ctx.restore();
 }
 
-// Depth of the south-face wall strip in world pixels (AC perspective only)
-const AC_FACE_H = 14;
-// Vertical squish factor for AC perspective
-const AC_SCALE_Y = 0.62;
-
 export function drawScene() {
   const now = Date.now();
   ctx.fillStyle = '#0d2344'; ctx.fillRect(0, 0, W, H);
@@ -171,49 +245,63 @@ export function drawScene() {
   for (let tx = s0x; tx <= e0x; tx++) { ctx.beginPath(); ctx.moveTo(tx * TS, s0y * TS); ctx.lineTo(tx * TS, e0y * TS); ctx.stroke(); }
   for (let ty = s0y; ty <= e0y; ty++) { ctx.beginPath(); ctx.moveTo(s0x * TS, ty * TS); ctx.lineTo(e0x * TS, ty * TS); ctx.stroke(); }
 
-  // land tiles
-  for (const t of Object.values(landTiles)) {
-    const px = t.wx * TS, py = t.wy * TS;
-    if (px > cam.x + W / zoom + TS || py > cam.y + H / zoom + TS + AC_FACE_H || px + TS < cam.x || py + TS < cam.y) continue;
-    const bc = BC[t.biome] || BC.plains;
-    ctx.fillStyle = t.alt ? bc.alt : bc.base; ctx.fillRect(px, py, TS, TS);
-    ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = .5; ctx.strokeRect(px, py, TS, TS);
-    if (perspectiveMode) {
-      // South-face depth strip — darker shade of the tile colour
-      ctx.fillStyle = t.alt ? (bc.alt_dark || bc.alt) : (bc.base_dark || bc.base);
-      ctx.globalAlpha = 0.55;
-      ctx.fillRect(px, py + TS, TS, AC_FACE_H);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = .5;
-      ctx.strokeRect(px, py + TS, TS, AC_FACE_H);
-    }
-    if (t.res) {
-      let ox = 0;
-      if (t.hitT) {
-        const age = now - t.hitT;
-        if (age < 350) {
-          ox = Math.sin(age * 0.09) * 2.5 * (1 - age / 350);
-        } else {
-          t.hitT = null;
+  // Compute visible chunk range
+  const chunkX0 = Math.floor(cam.x / CHUNK_PX) - 1;
+  const chunkX1 = Math.ceil((cam.x + W / zoom) / CHUNK_PX) + 1;
+  const chunkY0 = Math.floor(cam.y / CHUNK_PX) - 1;
+  const chunkY1 = Math.ceil((cam.y + H / zoom) / CHUNK_PX) + 1;
+
+  // Blit chunks (tiles + bridges, static resources)
+  for (let cy = chunkY0; cy <= chunkY1; cy++) {
+    for (let cx = chunkX0; cx <= chunkX1; cx++) {
+      const key = `${cx},${cy}`;
+      if (dirtyChunks.has(key) || !chunkCache.has(key)) {
+        // Only render if there's anything in this chunk
+        const chunkOriginWX = cx * CHUNK_TILES;
+        const chunkOriginWY = cy * CHUNK_TILES;
+        let hasContent = false;
+        for (let dy = 0; dy < CHUNK_TILES && !hasContent; dy++) {
+          for (let dx = 0; dx < CHUNK_TILES && !hasContent; dx++) {
+            if (landTiles[`${chunkOriginWX + dx},${chunkOriginWY + dy}`]) hasContent = true;
+          }
         }
+        if (!hasContent) {
+          // Check bridges
+          for (const bk of bridges) {
+            const [bwx, bwy] = bk.split(',').map(Number);
+            if (Math.floor(bwx / CHUNK_TILES) === cx && Math.floor(bwy / CHUNK_TILES) === cy) {
+              hasContent = true; break;
+            }
+          }
+        }
+        if (hasContent) renderChunk(cx, cy);
+        else { dirtyChunks.delete(key); continue; }
       }
-      drawRes(t.res, px + TS / 2 + ox, py + TS / 2, t.resHp, t.resMax || 1, t.biome);
+      const osc = chunkCache.get(key);
+      if (osc) {
+        const chunkWorldX = cx * CHUNK_PX;
+        const chunkWorldY = cy * CHUNK_PX;
+        ctx.drawImage(osc, chunkWorldX, chunkWorldY);
+      }
     }
   }
 
-  // bridges
-  for (const bk of bridges) {
-    const [bwx, bwy] = bk.split(',').map(Number);
-    const px = bwx * TS, py = bwy * TS;
-    if (px > cam.x + W / zoom + TS || py > cam.y + H / zoom + TS || px + TS < cam.x || py + TS < cam.y) continue;
-    ctx.fillStyle = '#8d6e3a'; ctx.fillRect(px, py, TS, TS);
-    ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1; ctx.strokeRect(px + 4, py + 4, TS - 8, TS - 8);
-    ctx.fillStyle = '#a1887f'; ctx.fillRect(px + 4, py + TS / 2 - 3, TS - 8, 6);
-    if (perspectiveMode) {
-      ctx.fillStyle = '#5d4037';
-      ctx.globalAlpha = 0.6;
-      ctx.fillRect(px, py + TS, TS, AC_FACE_H);
-      ctx.globalAlpha = 1;
+  // Overlay: tiles with active hitT (shake animation) drawn on main canvas
+  for (const t of Object.values(landTiles)) {
+    if (!t.res && !t.hitT) continue;
+    const px = t.wx * TS, py = t.wy * TS;
+    if (px > cam.x + W / zoom + TS || py > cam.y + H / zoom + TS + AC_FACE_H || px + TS < cam.x || py + TS < cam.y) continue;
+    if (t.hitT) {
+      const age = now - t.hitT;
+      if (age < 350) {
+        if (t.res) {
+          const ox = Math.sin(age * 0.09) * 2.5 * (1 - age / 350);
+          drawRes(ctx, t.res, px + TS / 2 + ox, py + TS / 2, t.resHp, t.resMax || 1, t.biome);
+        }
+      } else {
+        t.hitT = null;
+        invalidateChunk(t.wx, t.wy);
+      }
     }
   }
 
@@ -221,7 +309,7 @@ export function drawScene() {
   for (const s of structures) {
     const px = s.wx * TS, py = s.wy * TS;
     if (px > cam.x + W / zoom + TS || py > cam.y + H / zoom + TS || px + TS < cam.x || py + TS < cam.y) continue;
-    drawStruct(s.type, px + TS / 2, py + TS / 2);
+    drawStruct(ctx, s.type, px + TS / 2, py + TS / 2);
   }
 
   // island cost labels

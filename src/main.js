@@ -44,8 +44,13 @@ function gameLoop(ts) {
     _attackTimer = ATTACK_INTERVAL;
   }
 
+  if (showFPS) performance.mark('drops-start');
   updateDrops(dt);
+  if (showFPS) { performance.mark('drops-end'); performance.measure('drops', 'drops-start', 'drops-end'); }
+
+  if (showFPS) performance.mark('draw-start');
   drawScene();
+  if (showFPS) { performance.mark('draw-end'); performance.measure('draw', 'draw-start', 'draw-end'); }
 
   // FPS counter (screen-space, after drawScene)
   let fc = fpsCount + 1, ft = fpsTimer + dt, fv = fps;
