@@ -3,7 +3,7 @@ export const ISLAND_GRID = 9;
 export const CELL = 10;
 
 export const ZOOM_MIN = 0.4;
-export const ZOOM_MAX = 1;
+export const ZOOM_MAX = 1.5;
 export const ZOOM_STEP = 0.1;
 
 export const SWING_DUR = 420;
