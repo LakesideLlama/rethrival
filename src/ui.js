@@ -3,6 +3,7 @@ import {
   inv, xp, lvl, activeMode, buildMenuOpen, structures,
   setActiveMode, setBuildMenuOpen, settingsOpen, setSettingsOpen,
   showFPS, setShowFPS, setZoom, setXp, setLvl,
+  researchPoints, setResearchPoints,
 } from './state.js';
 import { costStr, canAfford, showMsg } from './utils.js';
 
@@ -15,6 +16,8 @@ export function updateUI() {
   const need = XP_TABLE[lvl] || 1;
   document.getElementById('xpbar-fill').style.width = (Math.min(xp / need, 1) * 100) + '%';
   document.getElementById('lvl-box').textContent = 'Lv ' + lvl + ' (' + xp + '/' + need + ')';
+  const rpBox = document.getElementById('rp-box');
+  if (rpBox) rpBox.textContent = '✦ ' + researchPoints;
   document.getElementById('btn-build').classList.toggle('active', !!activeMode);
   if (buildMenuOpen) renderBuildMenu();
 }
@@ -25,7 +28,8 @@ export function gainXP(a) {
   if (xp >= n && lvl < 10) {
     setLvl(lvl + 1);
     setXp(xp - n);
-    showMsg('LEVEL UP! Lv ' + lvl);
+    setResearchPoints(researchPoints + 2);
+    showMsg('LEVEL UP! Lv ' + lvl + '  +2 Research Points');
   }
   updateUI();
 }

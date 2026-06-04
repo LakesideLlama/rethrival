@@ -12,6 +12,7 @@
   <div class="hud-box" id="gold-box">🪙 0</div>
   <div class="hud-box" style="padding:4px 8px"><div id="xpbar-bg"><div id="xpbar-fill" style="width:0%"></div></div></div>
   <div class="hud-box" id="zoom-box" style="color:#777;font-size:11px">100%</div>
+  <div class="hud-box" id="rp-box" style="color:#f0c040;cursor:pointer" onclick="openResearch()" title="Research Points — press R">✦ 0</div>
 </div>
 
 <div id="inv-sidebar">
@@ -58,10 +59,11 @@
   <div id="research-overlay" onclick="closeResearch()"></div>
   <div id="research-panel">
     <div id="res-header">
-      <h2>✦ Research</h2>
+      <div id="res-title">✦ Research</div>
+      <div id="res-rp"></div>
       <button id="res-close" onclick="closeResearch()">✕</button>
     </div>
-    <div id="research-items"></div>
+    <canvas id="tree-c"></canvas>
   </div>
 </div>
 

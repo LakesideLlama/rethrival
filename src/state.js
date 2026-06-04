@@ -64,3 +64,5 @@ export function discover(item) { discovered.add(item); }
 export const researchUnlocked = new Set();
 export let researchOpen = false;
 export function setResearchOpen(v) { researchOpen = v; }
+export let researchPoints = 0;
+export function setResearchPoints(v) { researchPoints = v; }

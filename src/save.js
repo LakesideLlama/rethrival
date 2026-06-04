@@ -2,6 +2,7 @@ import { ISLAND_GRID } from './constants.js';
 import {
   inv, player, structures, bridges, xp, lvl, zoom, islandGrid, landTiles, craftTimers,
   setStructures, setBridges, setXp, setLvl, setZoom, discovered, researchUnlocked,
+  researchPoints, setResearchPoints,
 } from './state.js';
 import { buildTiles } from './world.js';
 import { updateUI } from './ui.js';
@@ -23,6 +24,7 @@ export function saveGame() {
     zoom, structures, bridges: [...bridges], islandData, tileStates,
     discovered: [...discovered],
     research: [...researchUnlocked],
+    researchPoints,
   };
   localStorage.setItem('rethrival_save', JSON.stringify(data));
 }
@@ -70,6 +72,7 @@ export function loadGame(manual) {
   else { Object.entries(inv).forEach(([k, v]) => { if (v > 0) discovered.add(k); }); }
   researchUnlocked.clear();
   if (d.research) d.research.forEach(r => researchUnlocked.add(r));
+  setResearchPoints(d.researchPoints || 0);
   setZoom(d.zoom || 1);
   updateUI();
   if (manual) showMsg('Game loaded');
@@ -85,6 +88,7 @@ export function confirmReset() {
     for (const k of Object.keys(landTiles)) delete landTiles[k];
     for (const k of Object.keys(craftTimers)) delete craftTimers[k];
     researchUnlocked.clear();
+    setResearchPoints(0);
     for (let iy = 0; iy < ISLAND_GRID; iy++)
       for (let ix = 0; ix < ISLAND_GRID; ix++)
         islandGrid[iy][ix].owned = false;

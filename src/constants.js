@@ -62,15 +62,34 @@ export const RECIPES = [
   { id:'herb_potion', name:'Herb Potion', inputs:{herb:3,food:1}, outputs:{potion:1},      xp:12, dur:5000 },
 ];
 
+// section: 'red'=combat, 'green'=nature, 'blue'=crafting, 'yellow'=exploration
+// ring: 1=inner, 2=mid, 3=outer  slot: branch index within section
+// cost: research points
 export const RESEARCH = [
-  { id: 'respawn_1',   name: 'Quick Growth',     desc: 'Resources respawn 40% faster',       cost: { wood: 20, stone: 10 },        xpReq: 0   },
-  { id: 'respawn_2',   name: 'Rapid Regrowth',   desc: 'Resources respawn 60% faster total', cost: { plank: 8, food: 10 },         xpReq: 100, needs: 'respawn_1' },
-  { id: 'speed_1',     name: 'Light Feet',       desc: 'Move 25% faster',                    cost: { food: 15, herb: 5 },          xpReq: 50  },
-  { id: 'speed_2',     name: 'Swift Stride',     desc: 'Move 50% faster total',              cost: { herb: 12, food: 20 },         xpReq: 200, needs: 'speed_1' },
-  { id: 'harvest_1',  name: 'Sharp Edge',        desc: 'Resources yield +1 item',            cost: { stone: 20, iron: 4 },         xpReq: 150 },
-  { id: 'harvest_2',  name: 'Bounty Harvest',    desc: 'Resources yield +2 items total',     cost: { iron: 10, ore: 6 },           xpReq: 400, needs: 'harvest_1' },
-  { id: 'xp_1',       name: 'Scholar',           desc: 'Gain 25% more XP',                   cost: { herb: 8, reed: 10 },          xpReq: 75  },
-  { id: 'craft_1',    name: 'Efficient Crafter', desc: 'Crafting 30% faster',                cost: { plank: 12, stone_block: 6 },  xpReq: 250 },
+  // ── Red: Combat ──────────────────────────────────────────
+  { id: 'atk_speed',   name: 'Swift Strike',   desc: '+20% attack speed',        section: 'red',    ring: 1, slot: 0, cost: 1, needs: null },
+  { id: 'atk_power',   name: 'Keen Edge',      desc: 'Resources take -1 swing',  section: 'red',    ring: 1, slot: 1, cost: 1, needs: null },
+  { id: 'atk_range',   name: 'Long Reach',     desc: '+30% sword range',         section: 'red',    ring: 2, slot: 0, cost: 2, needs: 'atk_speed' },
+  { id: 'wide_sweep',  name: 'Wide Sweep',     desc: '+30% swing arc width',     section: 'red',    ring: 2, slot: 1, cost: 2, needs: 'atk_power' },
+  { id: 'combat_master', name: 'War Instinct', desc: '+25% attack speed & range',section: 'red',    ring: 3, slot: 0, cost: 3, needs: 'atk_range' },
+  // ── Green: Nature ────────────────────────────────────────
+  { id: 'respawn_1',   name: 'Quick Growth',   desc: 'Resources respawn 40% faster', section: 'green', ring: 1, slot: 0, cost: 1, needs: null },
+  { id: 'harvest_1',   name: 'Sharp Axe',      desc: 'Resources yield +1 item',  section: 'green', ring: 1, slot: 1, cost: 1, needs: null },
+  { id: 'respawn_2',   name: 'Rapid Regrowth', desc: '60% faster respawn total', section: 'green', ring: 2, slot: 0, cost: 2, needs: 'respawn_1' },
+  { id: 'harvest_2',   name: 'Bounty',         desc: 'Resources yield +2 total', section: 'green', ring: 2, slot: 1, cost: 2, needs: 'harvest_1' },
+  { id: 'nature_gift', name: "Nature's Gift",  desc: 'Doubled yields, 70% respawn', section: 'green', ring: 3, slot: 0, cost: 3, needs: 'harvest_2' },
+  // ── Blue: Crafting ───────────────────────────────────────
+  { id: 'craft_1',     name: 'Efficient',      desc: 'Crafting 30% faster',      section: 'blue',  ring: 1, slot: 0, cost: 1, needs: null },
+  { id: 'xp_1',        name: 'Scholar',        desc: 'Gain 25% more XP',         section: 'blue',  ring: 1, slot: 1, cost: 1, needs: null },
+  { id: 'craft_2',     name: 'Mastery',        desc: 'Crafting 55% faster total',section: 'blue',  ring: 2, slot: 0, cost: 2, needs: 'craft_1' },
+  { id: 'xp_2',        name: 'Wisdom',         desc: 'Gain 50% more XP total',   section: 'blue',  ring: 2, slot: 1, cost: 2, needs: 'xp_1' },
+  { id: 'arcane',      name: 'Arcane Arts',    desc: 'All crafting 70% faster',  section: 'blue',  ring: 3, slot: 0, cost: 3, needs: 'craft_2' },
+  // ── Yellow: Exploration ──────────────────────────────────
+  { id: 'speed_1',     name: 'Light Feet',     desc: 'Move 25% faster',          section: 'yellow', ring: 1, slot: 0, cost: 1, needs: null },
+  { id: 'discount_1',  name: 'Bargainer',      desc: 'Islands 15% cheaper',      section: 'yellow', ring: 1, slot: 1, cost: 1, needs: null },
+  { id: 'speed_2',     name: 'Swift Stride',   desc: 'Move 50% faster total',    section: 'yellow', ring: 2, slot: 0, cost: 2, needs: 'speed_1' },
+  { id: 'discount_2',  name: 'Merchant',       desc: 'Islands 30% cheaper total',section: 'yellow', ring: 2, slot: 1, cost: 2, needs: 'discount_1' },
+  { id: 'pathfinder',  name: 'Pathfinder',     desc: 'Move 75% faster, islands 40% off', section: 'yellow', ring: 3, slot: 0, cost: 3, needs: 'speed_2' },
 ];
 
 export const BUILDABLES = [
