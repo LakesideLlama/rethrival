@@ -22,13 +22,18 @@ function initStars() {
   }
 }
 
-function drawStars(pitch, alpha) {
+function drawStars(pitch, alpha, bgAlpha) {
   if (!starCtx) return;
   const W = starCanvas.width, H = starCanvas.height;
   const cx = W / 2, cy = H / 2;
   const FOV = 600;
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
   starCtx.clearRect(0, 0, W, H);
+  // Solid background painted directly onto the star canvas — hides the game canvas below
+  starCtx.globalAlpha = bgAlpha;
+  starCtx.fillStyle = '#00000a';
+  starCtx.fillRect(0, 0, W, H);
+  starCtx.globalAlpha = 1;
   const t = Date.now() * 0.001;
   for (const s of stars) {
     const ry = s.y * cp - s.z * sp;
@@ -77,11 +82,7 @@ function animLoop() {
   if (animState === 'opening') {
     const pitch = PITCH_START + (PITCH_END - PITCH_START) * e;
     const starAlpha = Math.min(raw * 2.5, 1);
-    drawStars(pitch, starAlpha);
-    // Overlay blacks out the game canvas quickly (first 20% of anim), then stays solid
-    const overlayAlpha = Math.min(raw / 0.2, 1);
-    const overlay = document.getElementById('research-overlay');
-    if (overlay) overlay.style.background = `rgba(0,0,10,${overlayAlpha})`;
+    drawStars(pitch, starAlpha, e);
     if (raw >= 1) {
       animState = 'open';
       showPanel();
@@ -89,17 +90,13 @@ function animLoop() {
       return;
     }
   } else if (animState === 'open') {
-    drawStars(PITCH_END, 1);
+    drawStars(PITCH_END, 1, 1);
     rafId = null;
     return;
   } else if (animState === 'closing') {
     const pitch = PITCH_END + (PITCH_START - PITCH_END) * e;
     const starAlpha = 1 - e;
-    drawStars(pitch, starAlpha);
-    // Keep overlay solid until the last 20% of close, then fade to reveal game
-    const overlayAlpha = raw < 0.8 ? 1 : 1 - (raw - 0.8) / 0.2;
-    const overlay = document.getElementById('research-overlay');
-    if (overlay) overlay.style.background = `rgba(0,0,10,${overlayAlpha})`;
+    drawStars(pitch, starAlpha, 1 - e);
     if (raw >= 1) {
       animState = 'idle';
       const ui = document.getElementById('research-ui');
