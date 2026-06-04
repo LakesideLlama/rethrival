@@ -11,7 +11,7 @@ window.addEventListener('resize', () => {
 });
 
 export const inv = { wood:0, stone:0, food:0, wheat:0, plank:0, stone_block:0, gold:30, iron:0, ore:0, gold_ore:0, cactus_spine:0, sand:0, reed:0, mud:0, herb:0 };
-export const player = { x:0, y:0, spd:120, dir:0, mineRange:TS*1.5, swingT:0, swingDir:0, swingSide:1 };
+export const player = { x:0, y:0, spd:120, dir:0, mineRange:TS*1.5, swingT:0, swingDir:0 };
 export const drops = [];
 export let _dropId = 0;
 export function nextDropId() { return _dropId++; }
