@@ -203,7 +203,6 @@ function initOverlay() {
     const tp = screenToTree(e.clientX, e.clientY);
     const node = nodeAt(tp.x, tp.y);
     if (node) tryUnlock(node);
-    else closeResearch();
   });
 
   overlay.addEventListener('mouseleave', () => {
@@ -456,7 +455,7 @@ function drawTree(ctx, W, H) {
   ctx.fillText(`✦ ${researchPoints} Research Points`, cx, 28);
   ctx.fillStyle = 'rgba(255,255,255,.22)';
   ctx.font = '9px monospace';
-  ctx.fillText('scroll to zoom · drag to pan · click star to research · click background to close', cx, 54);
+  ctx.fillText('scroll to zoom · drag to pan · click star to research · R or Esc to close', cx, 54);
 }
 
 // ── Effects ───────────────────────────────────────────────────────────────────
