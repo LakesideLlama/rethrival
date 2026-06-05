@@ -141,110 +141,172 @@ function drawPlayer3D() {
   const now = Date.now();
   const moving = keys['w'] || keys['s'] || keys['a'] || keys['d'] ||
                  keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright'];
-  // Leg bob: two legs alternate phase
-  const bobSpeed = 8;
-  const bobAmp   = 3;
-  const legPhase = moving ? now / 1000 * bobSpeed : 0;
-  const legL = Math.sin(legPhase) * bobAmp;
-  const legR = Math.sin(legPhase + Math.PI) * bobAmp;
 
-  // Facing: derive a cardinal quadrant from player.dir for side-face shading
-  const facingRight = Math.cos(player.dir) > 0;
-  const facingDown  = Math.sin(player.dir) > 0;
+  const legPhase = moving ? now / 1000 * 8 : 0;
+
+  // Quantize player.dir into 4 cardinal faces
+  const norm = ((player.dir % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  let face;
+  if      (norm < Math.PI * 0.25 || norm >= Math.PI * 1.75) face = 'east';
+  else if (norm < Math.PI * 0.75) face = 'south';
+  else if (norm < Math.PI * 1.25) face = 'west';
+  else                             face = 'north';
 
   const px = player.x, py = player.y;
-  const DEPTH = 4; // side-face offset in pixels
-
   ctx.save();
   ctx.translate(px, py);
 
-  // ── drop shadow ──
+  // Drop shadow
   ctx.save();
-  ctx.scale(1, 0.4);
-  ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath(); ctx.ellipse(0, 22, 11, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.scale(1, 0.35);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, 28, 13, 5, 0, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
-  // ── legs (drawn behind body) ──
-  const legW = 5, legH = 8;
-  const legY = 10; // offset from centre down to leg top
-  // left leg
-  ctx.fillStyle = '#5d4037';
-  ctx.save(); ctx.translate(-4, legY + legL);
-  roundRect(ctx, -legW / 2, 0, legW, legH, 2); ctx.fill();
-  // left-leg side face
-  ctx.fillStyle = '#3e2723';
-  ctx.fillRect(-legW / 2 + DEPTH, legH - 3, legW, 3);
-  ctx.restore();
-  // right leg
-  ctx.fillStyle = '#5d4037';
-  ctx.save(); ctx.translate(4, legY + legR);
-  roundRect(ctx, -legW / 2, 0, legW, legH, 2); ctx.fill();
-  ctx.fillStyle = '#3e2723';
-  ctx.fillRect(-legW / 2 + DEPTH, legH - 3, legW, 3);
-  ctx.restore();
+  // Legs — two stubs with gradient, bobbing when moving
+  const legW = 6, legH = 10, legTopY = 8;
+  const legLY = Math.sin(legPhase) * 3.5;
+  const legRY = Math.sin(legPhase + Math.PI) * 3.5;
+  const legOffX = face === 'east' ? 1 : face === 'west' ? -1 : 0;
 
-  // ── torso side face (depth illusion) ──
-  const torsoX = -8, torsoY = -4, torsoW = 16, torsoH = 14;
-  ctx.fillStyle = facingRight ? '#bf8040' : '#7a5230';
-  ctx.fillRect(torsoX + DEPTH, torsoY + DEPTH, torsoW, torsoH);
+  for (const [ox, bobY] of [[-4 + legOffX, legLY], [4 + legOffX, legRY]]) {
+    const g = ctx.createLinearGradient(ox - legW / 2, legTopY + bobY, ox + legW / 2, legTopY + bobY + legH);
+    g.addColorStop(0, face === 'north' ? '#3e2e1a' : '#6d5a3f');
+    g.addColorStop(1, '#2a1c0a');
+    ctx.fillStyle = g;
+    ctx.save(); ctx.translate(ox, legTopY + bobY);
+    roundRect(ctx, -legW / 2, 0, legW, legH, 3); ctx.fill();
+    ctx.restore();
+  }
 
-  // ── torso front ──
-  ctx.fillStyle = '#e8a045';
-  ctx.strokeStyle = '#5d3a1a'; ctx.lineWidth = 1.5;
-  roundRect(ctx, torsoX, torsoY, torsoW, torsoH, 3);
+  // Torso — width narrows on side views; gradient fakes lighting
+  const bodyW = (face === 'east' || face === 'west') ? 11 : 17;
+  const bodyH = 15, bodyY = -5;
+  const fromX = face === 'west' ? bodyW / 2 : -bodyW / 2;
+  const toX   = face === 'west' ? -bodyW / 2 : bodyW / 2;
+  const bg = ctx.createLinearGradient(fromX, bodyY, toX, bodyY + bodyH);
+  if (face === 'north') {
+    bg.addColorStop(0, '#b06828'); bg.addColorStop(1, '#6a3510');
+  } else {
+    bg.addColorStop(0, '#f5b450'); bg.addColorStop(0.5, '#e89a35'); bg.addColorStop(1, '#8a4a10');
+  }
+  ctx.fillStyle = bg; ctx.strokeStyle = '#5d3a1a'; ctx.lineWidth = 1.5;
+  roundRect(ctx, -bodyW / 2, bodyY, bodyW, bodyH, 4); ctx.fill(); ctx.stroke();
+
+  // Front-only clothing details
+  if (face === 'south') {
+    ctx.fillStyle = '#fff8e0';
+    roundRect(ctx, -3, bodyY + 1, 6, 6, 2); ctx.fill();
+    ctx.fillStyle = '#4a2e0e';
+    ctx.fillRect(-bodyW / 2 + 2, bodyY + bodyH - 5, bodyW - 4, 3);
+    ctx.fillStyle = '#d4a020';
+    ctx.fillRect(-3, bodyY + bodyH - 6, 6, 5);
+  }
+
+  // Head — radial gradient for spherical look, shape adjusts per face
+  const headR = 9, headY = -19;
+  const glowX = face === 'west' ? 3 : -3;
+  const hg = ctx.createRadialGradient(glowX, headY - 4, 1, 0, headY, headR + 2);
+  hg.addColorStop(0, '#fde8b8');
+  hg.addColorStop(0.55, '#f5c07a');
+  hg.addColorStop(1, '#a05a20');
+  ctx.fillStyle = hg; ctx.strokeStyle = '#7a4a1a'; ctx.lineWidth = 1.5;
+
+  const hRx = (face === 'east' || face === 'west') ? headR * 0.78 : headR;
+  const hRy = headR * 0.92;
+  const hOx = face === 'east' ? 1 : face === 'west' ? -1 : 0;
+  ctx.beginPath(); ctx.ellipse(hOx, headY, hRx, hRy, 0, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
 
-  // ── head side face ──
-  ctx.fillStyle = facingRight ? '#d4955a' : '#9c6030';
-  ctx.beginPath();
-  ctx.ellipse(DEPTH, -17 + DEPTH, 9, 8, 0, 0, Math.PI * 2); ctx.fill();
+  // Face features — directional
+  if (face === 'south') {
+    // Eyes
+    ctx.fillStyle = '#2c1a0a';
+    ctx.beginPath(); ctx.ellipse(-3.5, headY + 1, 2, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(3.5, headY + 1, 2, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-2.5, headY - 0.5, 0.9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(4.5,  headY - 0.5, 0.9, 0, Math.PI * 2); ctx.fill();
+    // Smile
+    ctx.strokeStyle = '#7a3a10'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, headY + 3, 3.2, 0.25, Math.PI - 0.25); ctx.stroke();
+    // Blush
+    ctx.fillStyle = 'rgba(255,130,100,0.35)';
+    ctx.beginPath(); ctx.ellipse(-5.5, headY + 4, 2.8, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( 5.5, headY + 4, 2.8, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (face === 'east') {
+    // One eye (facing right, left eye occluded)
+    ctx.fillStyle = '#2c1a0a';
+    ctx.beginPath(); ctx.ellipse(2.5, headY + 1, 1.8, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(3.5, headY - 0.2, 0.8, 0, Math.PI * 2); ctx.fill();
+    // Nose
+    ctx.strokeStyle = '#c07038'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(hRx - 1, headY + 1.5); ctx.lineTo(hRx - 2.5, headY + 4); ctx.stroke();
+    // Ear (far side, left)
+    ctx.fillStyle = '#f5c07a'; ctx.strokeStyle = '#7a4a1a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(-hRx + 0.5, headY + 1.5, 2.5, 3.5, 0.2, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e0956a';
+    ctx.beginPath(); ctx.ellipse(-hRx + 0.5, headY + 2, 1.1, 2, 0.2, 0, Math.PI * 2); ctx.fill();
+  } else if (face === 'west') {
+    ctx.fillStyle = '#2c1a0a';
+    ctx.beginPath(); ctx.ellipse(-2.5, headY + 1, 1.8, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-3.5, headY - 0.2, 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c07038'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-hRx + 1, headY + 1.5); ctx.lineTo(-hRx + 2.5, headY + 4); ctx.stroke();
+    ctx.fillStyle = '#f5c07a'; ctx.strokeStyle = '#7a4a1a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(hRx - 0.5, headY + 1.5, 2.5, 3.5, -0.2, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e0956a';
+    ctx.beginPath(); ctx.ellipse(hRx - 0.5, headY + 2, 1.1, 2, -0.2, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // North — back of head, ears visible from behind
+    ctx.fillStyle = '#f0b870'; ctx.strokeStyle = '#7a4a1a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(-hRx + 0.5, headY + 1.5, 2.5, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse( hRx - 0.5, headY + 1.5, 2.5, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
 
-  // ── head front ──
-  ctx.fillStyle = '#f5c07a';
-  ctx.strokeStyle = '#7a4a1a'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.ellipse(0, -17, 9, 8, 0, 0, Math.PI * 2);
-  ctx.fill(); ctx.stroke();
-
-  // ── eyes — shift toward facing direction ──
-  const eyeShift = Math.cos(player.dir) * 3.5;
-  const eyeVShift = Math.sin(player.dir) * 1.5;
-  ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath(); ctx.arc(eyeShift - 3, -17 + eyeVShift, 1.6, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(eyeShift + 3, -17 + eyeVShift, 1.6, 0, Math.PI * 2); ctx.fill();
-  // eye shine
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.beginPath(); ctx.arc(eyeShift - 2.2, -17.7 + eyeVShift, 0.7, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(eyeShift + 3.8, -17.7 + eyeVShift, 0.7, 0, Math.PI * 2); ctx.fill();
-
-  // ── hair nub on top ──
-  ctx.fillStyle = '#7a4a1a';
-  ctx.beginPath(); ctx.ellipse(0, -25, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#5d3010'; ctx.lineWidth = 1; ctx.stroke();
+  // Hair — drawn last so it sits on top of head
+  ctx.strokeStyle = '#5d3010'; ctx.lineWidth = 1;
+  if (face === 'north') {
+    // Full hair cap from behind
+    ctx.fillStyle = '#7a4a1a';
+    ctx.beginPath(); ctx.ellipse(0, headY - hRy + 4, hRx - 0.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-hRx + 1, headY - 1, 3.5, 5, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( hRx - 1, headY - 1, 3.5, 5,  0.3, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = '#7a4a1a';
+    ctx.beginPath(); ctx.ellipse(0, headY - hRy + 3, hRx * 0.8, 5, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-hRx * 0.55, headY - hRy + 5, 3.5, 4.5, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( hRx * 0.55, headY - hRy + 5, 3.5, 4.5,  0.4, 0, Math.PI * 2); ctx.fill();
+  }
 
   ctx.restore();
 
-  // ── sword (drawn in world space, after ctx.restore so it sits in front) ──
+  // Sword
   ctx.save(); ctx.translate(px, py); ctx.rotate(swordAng); ctx.translate(14, 0);
-  // blade depth face
-  ctx.fillStyle = '#90a4ae';
-  ctx.fillRect(0, 1, 22, 3);
-  // blade
-  ctx.fillStyle = '#cfd8dc';
-  ctx.fillRect(0, -2, 22, 3);
-  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(1, -1.5); ctx.lineTo(21, -1.5); ctx.stroke();
-  // guard
+  const bladeG = ctx.createLinearGradient(0, -2.5, 0, 2.5);
+  bladeG.addColorStop(0, '#ecf0f4'); bladeG.addColorStop(0.5, '#cfd8dc'); bladeG.addColorStop(1, '#78909c');
+  ctx.fillStyle = bladeG;
+  ctx.beginPath(); ctx.moveTo(0, -2.5); ctx.lineTo(23, -0.5); ctx.lineTo(23, 0.5); ctx.lineTo(0, 2.5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,230,255,0.4)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(20, 0); ctx.stroke();
   ctx.fillStyle = '#ffd54f'; ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.rect(-2, -6, 4, 12); ctx.fill(); ctx.stroke();
-  // grip
   ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(-9, 0); ctx.stroke();
-  ctx.fillStyle = '#9e9e9e'; ctx.beginPath(); ctx.arc(-9, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(-10, 0); ctx.stroke();
+  ctx.strokeStyle = '#8d6e50'; ctx.lineWidth = 1.5;
+  for (let i = -9; i < -2; i += 2) { ctx.beginPath(); ctx.moveTo(i, -2); ctx.lineTo(i, 2); ctx.stroke(); }
+  ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(-10, 0, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#777'; ctx.lineWidth = 1; ctx.stroke();
   if (swinging) {
     ctx.globalAlpha = (1 - Math.abs(animT - 1)) * 0.45;
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 18;
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(22, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(23, 0); ctx.stroke();
     ctx.globalAlpha = 1;
   }
   ctx.restore();
